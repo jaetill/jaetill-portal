@@ -1,0 +1,19 @@
+node_modules/
+dist/
+.env
+.env.local
+.env.*.local
+.DS_Store
+
+# Lambda deployment artifacts (rebuilt from lambda/*.js)
+lambda/*.zip
+
+# Editor / OS noise
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Coverage / build cache
+coverage/
+*.tsbuildinfo
