@@ -208,8 +208,8 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: |
-          npm ci
-          npm ci --prefix lambda
+          npm ci --legacy-peer-deps
+          [ -f lambda/package.json ] && npm ci --legacy-peer-deps --prefix lambda || echo "no lambda/package.json, skipping"
       - name: Run functional-tester agent
         uses: anthropics/claude-code-action@v1
         with:
@@ -271,8 +271,8 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: |
-          npm ci
-          npm ci --prefix lambda
+          npm ci --legacy-peer-deps
+          [ -f lambda/package.json ] && npm ci --legacy-peer-deps --prefix lambda || echo "no lambda/package.json, skipping"
       - name: Run test-writer agent
         uses: anthropics/claude-code-action@v1
         with:
@@ -358,7 +358,7 @@ jobs:
           node-version: 22
           cache: npm
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --legacy-peer-deps
       - name: Install Playwright browser + system deps
         run: npx playwright install --with-deps chromium
       - name: Run e2e suite (captures output for agent)
