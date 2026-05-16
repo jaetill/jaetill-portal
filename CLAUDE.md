@@ -137,3 +137,14 @@ The App Client must include `http://localhost:5173/callback.html` in its callbac
 - The portal does NOT use Cognito groups today — every authenticated user sees every app. `apps.js` has a placeholder `appsForUser(claims)` that can filter by `claims['cognito:groups']` once group-based access lands.
 - Game-night currently lives on GitHub Pages, not a CloudFront subdomain. The tile URL is a placeholder until game-night moves under jaetill.com or we link directly to the github.io URL.
 - ai-teacher is intentionally **not** in the launcher — it uses direct Google OAuth (Drive/Classroom scopes) and is scoped to a different user (Heidi). Adding it would weaken the SSO story.
+
+
+---
+
+## Platform inheritance
+
+This project adopts the [Agentic Dev Environment](https://github.com/jaetill/agentic-dev-environment) platform per [ADR-0001](docs/adr/0001-platform-adoption.md). The platform's 11 standards (in [`docs/standards/`](https://github.com/jaetill/agentic-dev-environment/tree/main/docs/standards) of the workspace repo) define how this project is operated. Project-specific deviations are documented in ADR-0001.
+
+### AI configuration
+
+The platform's subagents, slash commands, and platform hooks are delivered via the `ai-team` plugin subscription (per workspace ADR-0015). `.claude/settings.json` retains only the plugin subscription (`enabledPlugins`), the permissions block, and `extraKnownMarketplaces` pointing at the workspace's GitHub source. Hook scripts, agent definitions, and commands are NOT committed locally - they ship via the plugin. The existing `.claude/settings.local.json` (gitignored) remains untouched.
