@@ -63,14 +63,7 @@ jobs:
           # Use GITHUB_TOKEN for push permissions (already write per
           # workflow-level permissions block).
           token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - name: Install dependencies
-        run: |
-          npm ci --legacy-peer-deps
-          [ -f lambda/package.json ] && npm ci --legacy-peer-deps --prefix lambda || echo "no lambda/package.json, skipping"
+      - uses: jaetill/agentic-dev-environment/.github/actions/install-node-deps@main
       - name: Configure git author
         run: |
           git config user.name 'claude[bot]'
@@ -260,16 +253,8 @@ jobs:
           fetch-depth: 0
           ref: ${{ steps.pr.outputs.head_ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/setup-node@v4
+      - uses: jaetill/agentic-dev-environment/.github/actions/install-node-deps@main
         if: steps.pr.outputs.skip != 'true'
-        with:
-          node-version: 22
-          cache: npm
-      - name: Install dependencies
-        if: steps.pr.outputs.skip != 'true'
-        run: |
-          npm ci --legacy-peer-deps
-          [ -f lambda/package.json ] && npm ci --legacy-peer-deps --prefix lambda || echo "no lambda/package.json, skipping"
       - name: Configure git author
         if: steps.pr.outputs.skip != 'true'
         run: |
@@ -355,11 +340,7 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci --legacy-peer-deps && [ -f lambda/package.json ] && npm ci --legacy-peer-deps --prefix lambda || echo "no lambda/package.json, skipping"
+      - uses: jaetill/agentic-dev-environment/.github/actions/install-node-deps@main
       - name: Configure git author
         run: |
           git config user.name 'claude[bot]'

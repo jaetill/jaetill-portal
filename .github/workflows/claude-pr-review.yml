@@ -202,14 +202,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - name: Install dependencies
-        run: |
-          npm ci --legacy-peer-deps
-          [ -f lambda/package.json ] && npm ci --legacy-peer-deps --prefix lambda || echo "no lambda/package.json, skipping"
+      - uses: jaetill/agentic-dev-environment/.github/actions/install-node-deps@main
       - name: Run functional-tester agent
         uses: anthropics/claude-code-action@v1
         with:
@@ -265,14 +258,7 @@ jobs:
           # Use a token that can push to the PR branch. GITHUB_TOKEN
           # has write to contents per the workflow-level permissions block.
           token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - name: Install dependencies
-        run: |
-          npm ci --legacy-peer-deps
-          [ -f lambda/package.json ] && npm ci --legacy-peer-deps --prefix lambda || echo "no lambda/package.json, skipping"
+      - uses: jaetill/agentic-dev-environment/.github/actions/install-node-deps@main
       - name: Run test-writer agent
         uses: anthropics/claude-code-action@v1
         with:
@@ -353,12 +339,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+      - uses: jaetill/agentic-dev-environment/.github/actions/install-node-deps@main
       - name: Install Playwright browser + system deps
         run: npx playwright install --with-deps chromium
       - name: Run e2e suite (captures output for agent)
