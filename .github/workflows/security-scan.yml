@@ -10,18 +10,17 @@ permissions:
   contents: read
   security-events: write
 
-# Inlined security scan flow.
+# Two scanners, scoped:
+#   1. gitleaks - secret leakage in committed code (defense-in-depth vs. the
+#                 pre-commit hook).
+#   2. npm audit - dependency vulnerabilities at the configured severity floor.
 #
-# Original referenced jaetill/agentic-dev-environment/.github/workflows/security-scan.yml@main
-# as a reusable workflow, but that platform repo is local-only — the reference
-# 404'd at startup.
+# Both run on every PR to main and on a Monday 09:00 UTC cron.
 #
-# Inlining covers the same intent with two scoped scanners:
-#   1. gitleaks  — secret leakage in committed code (mirrors the pre-commit hook,
-#                  but runs on the GitHub side as a defense-in-depth gate).
-#   2. npm audit — dependency vulnerabilities at the configured severity floor.
-#
-# Both run on every PR to master and on a Monday 09:00 UTC cron.
+# Note: portal's lambda/ has no package.json (the Lambda uses only the
+# AWS SDK provided at runtime). When portal grows a lambda/package.json
+# (e.g. for Phase 5 Sentry wrapping), add a second `npm audit` step
+# scoped to --prefix lambda.
 
 jobs:
   gitleaks:
@@ -29,7 +28,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # gitleaks needs full history to scan all commits
+          fetch-depth: 0
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -41,11 +40,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      # `npm audit --omit=dev` so we only fail on production-runtime vulnerabilities;
-      # dev-only deps (vitest, eslint, etc.) won't gate releases.
-      # `--audit-level=high` keeps the bar at "high" or "critical" — moderate
-      # findings get reported but don't fail the workflow.
+      # --omit=dev: only fail on production-runtime vulnerabilities.
+      # --audit-level=high: moderate findings reported but don't gate.
       - name: Audit root deps
         run: npm audit --omit=dev --audit-level=high
-      - name: Audit lambda deps
-        run: npm audit --omit=dev --audit-level=high --prefix lambda
