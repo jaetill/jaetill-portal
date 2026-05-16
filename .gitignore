@@ -17,3 +17,18 @@ Thumbs.db
 # Coverage / build cache
 coverage/
 *.tsbuildinfo
+
+# Claude Code artifacts
+.claude/audit.log
+.claude/sessions/
+.claude/worktrees/
+
+# AWS one-off scratch files
+.tmp-*.json
+
+# MkDocs build output
+site/
+
+# ESLint cache (Phase 3)
+.eslintcache
+.claude/settings.local.json
