@@ -154,8 +154,16 @@ function renderAdminSection() {
           <h2 class="font-semibold text-gray-900">Users on jaetill.com</h2>
           <p class="text-sm text-gray-500 mt-0.5" id="admin-users-status">Loading…</p>
         </div>
-        <button id="refresh-users-btn" class="text-sm text-gray-600 hover:text-gray-900">Refresh</button>
+        <div class="flex items-center gap-3">
+          <button id="nudge-all-btn"
+                  class="text-sm bg-amber-600 text-white px-3 py-1.5 rounded-lg hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled>
+            Nudge all stuck users
+          </button>
+          <button id="refresh-users-btn" class="text-sm text-gray-600 hover:text-gray-900">Refresh</button>
+        </div>
       </div>
+      <p class="text-sm" id="nudge-bulk-status"></p>
       <div class="overflow-x-auto">
         <table class="min-w-full text-sm" id="admin-users-table">
           <thead class="text-xs uppercase tracking-wide text-gray-500 border-b">
@@ -163,7 +171,8 @@ function renderAdminSection() {
               <th class="text-left py-2 pr-4">Email</th>
               <th class="text-left py-2 pr-4">Status</th>
               <th class="text-left py-2 pr-4">Joined</th>
-              <th class="text-left py-2">Apps</th>
+              <th class="text-left py-2 pr-4">Apps</th>
+              <th class="text-left py-2">Actions</th>
             </tr>
           </thead>
           <tbody id="admin-users-tbody"></tbody>
@@ -219,17 +228,37 @@ async function loadAdminUsers() {
         .map(a => `<span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium ${a.cls} mr-1">${escape(a.label)}</span>`)
         .join('');
       const joined = u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—';
+      const action = u.status === 'FORCE_CHANGE_PASSWORD'
+        ? `<button class="nudge-btn text-xs bg-amber-100 text-amber-800 hover:bg-amber-200 px-2 py-1 rounded" data-email="${escape(u.email || '')}">Nudge</button>`
+        : '<span class="text-gray-300 text-xs">—</span>';
       return `
         <tr class="border-b last:border-0">
           <td class="py-2 pr-4 font-medium text-gray-900">${escape(u.email || '(no email)')}</td>
           <td class="py-2 pr-4"><span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium ${pill.cls}">${escape(pill.label)}</span></td>
           <td class="py-2 pr-4 text-gray-600">${escape(joined)}</td>
-          <td class="py-2">${apps || '<span class="text-gray-400 text-xs">none</span>'}</td>
+          <td class="py-2 pr-4">${apps || '<span class="text-gray-400 text-xs">none</span>'}</td>
+          <td class="py-2">${action}</td>
         </tr>
       `;
     }).join('');
 
-    status.textContent = `${users.length} user${users.length === 1 ? '' : 's'}`;
+    // Wire per-row nudge buttons.
+    tbody.querySelectorAll('.nudge-btn').forEach(btn => {
+      btn.addEventListener('click', () => handleNudgeOne(btn));
+    });
+
+    // Wire the bulk button. Enable only when there's something to nudge.
+    const stuckCount = users.filter(u => u.status === 'FORCE_CHANGE_PASSWORD').length;
+    const bulkBtn = document.getElementById('nudge-all-btn');
+    if (bulkBtn) {
+      bulkBtn.disabled = stuckCount === 0;
+      bulkBtn.textContent = stuckCount > 0
+        ? `Nudge all stuck users (${stuckCount})`
+        : 'Nudge all stuck users';
+      bulkBtn.onclick = () => handleNudgeAllStuck(stuckCount);
+    }
+
+    status.textContent = `${users.length} user${users.length === 1 ? '' : 's'} (${stuckCount} stuck)`;
 
     const refreshBtn = document.getElementById('refresh-users-btn');
     if (refreshBtn) refreshBtn.onclick = loadAdminUsers;
@@ -284,6 +313,84 @@ async function handleInviteSubmit(e) {
   } finally {
     btn.disabled    = false;
     btn.textContent = 'Send invite';
+  }
+}
+
+// ── Admin nudge actions ────────────────────────────────────────
+
+async function handleNudgeOne(btn) {
+  const email = btn.dataset.email;
+  if (!email) return;
+  btn.disabled = true;
+  const originalLabel = btn.textContent;
+  btn.textContent = 'Sending…';
+
+  try {
+    const res = await fetch(`${API_BASE}/invite`, {
+      method:  'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${getIdToken()}`,
+      },
+      body: JSON.stringify({ action: 'nudge', email }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
+    btn.textContent = 'Nudged ✓';
+    btn.classList.remove('bg-amber-100', 'text-amber-800', 'hover:bg-amber-200');
+    btn.classList.add('bg-green-100', 'text-green-800');
+    // Disable for the cooldown window; the user can refresh to re-evaluate.
+    setTimeout(() => {
+      btn.textContent = originalLabel;
+      btn.classList.remove('bg-green-100', 'text-green-800');
+      btn.classList.add('bg-amber-100', 'text-amber-800', 'hover:bg-amber-200');
+      btn.disabled = false;
+    }, 60_000);
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+    alert(`Couldn't nudge ${email}: ${err.message}`);
+  }
+}
+
+async function handleNudgeAllStuck(stuckCount) {
+  if (stuckCount === 0) return;
+  if (!confirm(`This will email ${stuckCount} stuck user${stuckCount === 1 ? '' : 's'}. Continue?`)) return;
+
+  const bulkBtn = document.getElementById('nudge-all-btn');
+  const bulkStatus = document.getElementById('nudge-bulk-status');
+  bulkBtn.disabled = true;
+  bulkBtn.textContent = 'Sending…';
+  if (bulkStatus) {
+    bulkStatus.textContent = '';
+    bulkStatus.className = 'text-sm';
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/invite`, {
+      method:  'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${getIdToken()}`,
+      },
+      body: JSON.stringify({ action: 'nudge-all-stuck' }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
+    if (bulkStatus) {
+      const errs = (data.errors || []).length;
+      bulkStatus.textContent = `Nudged ${data.sent}, skipped ${data.skipped} (cooldown), errors ${errs}.`;
+      bulkStatus.className = `text-sm ${errs > 0 ? 'text-amber-700' : 'text-green-600'}`;
+    }
+    // Refresh the table to reflect any state changes.
+    await loadAdminUsers();
+  } catch (err) {
+    if (bulkStatus) {
+      bulkStatus.textContent = `Bulk nudge failed: ${err.message}`;
+      bulkStatus.className = 'text-sm text-red-600';
+    }
+    bulkBtn.disabled = false;
+    bulkBtn.textContent = 'Nudge all stuck users';
   }
 }
 
