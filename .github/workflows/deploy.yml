@@ -17,8 +17,27 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      - run: npm ci --legacy-peer-deps
       - run: npm run build
+
+      # Sentry release + source map upload, gated on SENTRY_AUTH_TOKEN being
+      # present. Phase 5 of platform adoption will wire Sentry; this step
+      # skips cleanly until then per ADR-0001.
+      - name: Upload source maps to Sentry
+        if: env.SENTRY_AUTH_TOKEN != ''
+        continue-on-error: true
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+        uses: getsentry/action-release@v1
+        with:
+          version: ${{ github.sha }}
+          environment: prod
+          sourcemaps: ./dist
+          set_commits: auto
+          finalize: true
+
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}

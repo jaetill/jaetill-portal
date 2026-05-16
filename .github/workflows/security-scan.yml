@@ -1,0 +1,46 @@
+name: security-scan
+on:
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 9 * * 1' # Monday 09:00 UTC
+  workflow_dispatch: # manual trigger for verification
+
+permissions:
+  contents: read
+  security-events: write
+
+# Two scanners, scoped:
+#   1. gitleaks - secret leakage in committed code (defense-in-depth vs. the
+#                 pre-commit hook).
+#   2. npm audit - dependency vulnerabilities at the configured severity floor.
+#
+# Both run on every PR to main and on a Monday 09:00 UTC cron.
+#
+# Note: portal's lambda/ has no package.json (the Lambda uses only the
+# AWS SDK provided at runtime). When portal grows a lambda/package.json
+# (e.g. for Phase 5 Sentry wrapping), add a second `npm audit` step
+# scoped to --prefix lambda.
+
+jobs:
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  npm-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # --omit=dev: only fail on production-runtime vulnerabilities.
+      # --audit-level=high: moderate findings reported but don't gate.
+      - name: Audit root deps
+        run: npm audit --omit=dev --audit-level=high
