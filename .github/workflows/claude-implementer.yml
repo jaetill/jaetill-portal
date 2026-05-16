@@ -63,7 +63,7 @@ jobs:
           # Use GITHUB_TOKEN for push permissions (already write per
           # workflow-level permissions block).
           token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: jaetill/agentic-dev-environment/.github/actions/install-node-deps@main
+      - uses: jaetill/agentic-dev-environment/actions/install-node-deps@main
       - name: Configure git author
         run: |
           git config user.name 'claude[bot]'
@@ -253,7 +253,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ steps.pr.outputs.head_ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: jaetill/agentic-dev-environment/.github/actions/install-node-deps@main
+      - uses: jaetill/agentic-dev-environment/actions/install-node-deps@main
         if: steps.pr.outputs.skip != 'true'
       - name: Configure git author
         if: steps.pr.outputs.skip != 'true'
@@ -340,7 +340,7 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: jaetill/agentic-dev-environment/.github/actions/install-node-deps@main
+      - uses: jaetill/agentic-dev-environment/actions/install-node-deps@main
       - name: Configure git author
         run: |
           git config user.name 'claude[bot]'

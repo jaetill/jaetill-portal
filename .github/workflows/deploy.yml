@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: jaetill/agentic-dev-environment/.github/actions/install-node-deps@main
+      - uses: jaetill/agentic-dev-environment/actions/install-node-deps@main
       - run: npm run build
 
       # Sentry release + source map upload, gated on SENTRY_AUTH_TOKEN being
