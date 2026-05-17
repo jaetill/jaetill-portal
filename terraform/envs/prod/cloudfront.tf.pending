@@ -1,0 +1,57 @@
+# CloudFront distribution E3L96MPPOA7GTI — jaetill.com apex + www subdomain.
+# OAC E209SBSPLCBS9N restricts S3 access to this distribution.
+
+resource "aws_cloudfront_origin_access_control" "main" {
+  name                              = "jaetill-portal-oac"
+  description                       = "OAC for jaetill-portal apex"
+  origin_access_control_origin_type = "s3"
+  signing_behavior                  = "always"
+  signing_protocol                  = "sigv4"
+}
+
+resource "aws_cloudfront_distribution" "main" {
+  enabled         = true
+  comment         = "jaetill-portal apex (jaetill.com)"
+  price_class     = "PriceClass_100"
+  is_ipv6_enabled = true
+  aliases         = ["www.jaetill.com", "jaetill.com"]
+
+  origin {
+    domain_name              = aws_s3_bucket.main.bucket_regional_domain_name
+    origin_id                = "S3-jaetill-portal"
+    origin_access_control_id = aws_cloudfront_origin_access_control.main.id
+
+    s3_origin_config {
+      origin_access_identity = ""
+    }
+  }
+
+  default_cache_behavior {
+    target_origin_id       = "S3-jaetill-portal"
+    viewer_protocol_policy = "redirect-to-https"
+    allowed_methods        = ["GET", "HEAD"]
+    cached_methods         = ["GET", "HEAD"]
+
+    forwarded_values {
+      query_string = false
+      cookies { forward = "none" }
+    }
+  }
+
+  viewer_certificate {
+    cloudfront_default_certificate = false
+    acm_certificate_arn            = var.cloudfront_acm_cert_arn
+    minimum_protocol_version       = "TLSv1.2_2021"
+    ssl_support_method             = "sni-only"
+  }
+
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
+  }
+
+  lifecycle {
+    ignore_changes = [origin]
+  }
+}
