@@ -12,13 +12,12 @@ import {
   id = "jaetill-portal"
 }
 
-# Pending IAM fix:
-# import {
-#   to = aws_cloudfront_origin_access_control.main
-#   id = "E209SBSPLCBS9N"
-# }
-#
-# import {
-#   to = aws_cloudfront_distribution.main
-#   id = "E3L96MPPOA7GTI"
-# }
+import {
+  to = aws_cloudfront_origin_access_control.main
+  id = "E209SBSPLCBS9N"
+}
+
+import {
+  to = aws_cloudfront_distribution.main
+  id = "E3L96MPPOA7GTI"
+}
