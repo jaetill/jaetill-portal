@@ -15,6 +15,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: jaetill/agentic-dev-environment/actions/install-node-deps@main
       - run: npm run build
+        env:
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+          VITE_DEPLOY_ENV: production
+          VITE_RELEASE_VERSION: ${{ github.sha }}
 
       # Sentry release + source map upload, gated on SENTRY_AUTH_TOKEN being
       # present. Phase 5 of platform adoption will wire Sentry; this step
@@ -33,6 +37,12 @@ jobs:
           sourcemaps: ./dist
           set_commits: auto
           finalize: true
+      - name: Strip source maps from dist/ before S3 sync
+        if: always()
+        run: |
+          find dist -name '*.map' -type f -delete
+          find dist -name '*.js' -type f -exec sed -i '/\/\/# sourceMappingURL=/d' {} +
+          find dist -name '*.css' -type f -exec sed -i '/\/\*# sourceMappingURL=/d' {} +
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:
