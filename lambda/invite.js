@@ -25,9 +25,10 @@ const {
 } = require('@aws-sdk/client-cognito-identity-provider');
 const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
 const crypto = require('crypto');
+const { Sentry } = require('./lib/sentry');
 const https = require('https');
 
-const cognito  = new CognitoIdentityProviderClient({ region: process.env.REGION });
+const cognito = new CognitoIdentityProviderClient({ region: process.env.REGION });
 const smClient = new SecretsManagerClient({ region: process.env.REGION });
 
 // Lazily fetched + cached for the lifetime of the Lambda container.
@@ -36,7 +37,9 @@ const smClient = new SecretsManagerClient({ region: process.env.REGION });
 let _secrets;
 async function getSecrets() {
   if (!_secrets) {
-    const res = await smClient.send(new GetSecretValueCommand({ SecretId: 'shared/postmark-api-key' }));
+    const res = await smClient.send(
+      new GetSecretValueCommand({ SecretId: 'shared/postmark-api-key' }),
+    );
     _secrets = JSON.parse(res.SecretString);
   }
   return _secrets;
@@ -58,10 +61,10 @@ const NUDGE_COOLDOWN_MS = 60_000;
 function generateTempPassword() {
   const lower = 'abcdefghijkmnpqrstuvwxyz';
   const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-  const num   = '23456789';
-  const sym   = '!@#$%^&*';
-  const all   = lower + upper + num + sym;
-  const pick  = (s) => s[crypto.randomInt(0, s.length)];
+  const num = '23456789';
+  const sym = '!@#$%^&*';
+  const all = lower + upper + num + sym;
+  const pick = (s) => s[crypto.randomInt(0, s.length)];
 
   // Guarantee one of each character class, then fill to 16
   const chars = [pick(lower), pick(upper), pick(num), pick(sym)];
@@ -78,19 +81,19 @@ const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'https://jaetill.com';
 
 const APP_TO_GROUP = {
   'meal-planner': 'meal-planner-users',
-  'game-night':   'game-night-users',
-  'carto':        'carto-users',
+  'game-night': 'game-night-users',
+  carto: 'carto-users',
 };
 
 // ── Helpers ─────────────────────────────────────────────────────
 
 function corsHeaders() {
   return {
-    'Access-Control-Allow-Origin':  ALLOWED_ORIGIN,
+    'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Max-Age':       '300',
-    'Content-Type':                 'application/json',
+    'Access-Control-Max-Age': '300',
+    'Content-Type': 'application/json',
   };
 }
 
@@ -103,14 +106,17 @@ function parseGroups(claim) {
   if (!claim) return [];
   if (Array.isArray(claim)) return claim;
   if (typeof claim === 'string') {
-    return claim.replace(/^\[|\]$/g, '').split(/[\s,]+/).filter(Boolean);
+    return claim
+      .replace(/^\[|\]$/g, '')
+      .split(/[\s,]+/)
+      .filter(Boolean);
   }
   return [];
 }
 
 // ── Handler ─────────────────────────────────────────────────────
 
-exports.handler = async (event) => {
+exports.handler = Sentry.wrapHandler(async (event) => {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: corsHeaders(), body: '' };
   }
@@ -126,20 +132,25 @@ exports.handler = async (event) => {
   }
 
   let body;
-  try { body = JSON.parse(event.body || '{}'); }
-  catch { return resp(400, { message: 'Invalid JSON body' }); }
+  try {
+    body = JSON.parse(event.body || '{}');
+  } catch {
+    return resp(400, { message: 'Invalid JSON body' });
+  }
 
   // Discriminate on action. Default is 'create' for backward compatibility
   // with the existing UI which sends { email, apps } and expects user creation.
   const action = body.action || 'create';
-  if (action === 'nudge')           return await handleNudgeOne(body);
+  if (action === 'nudge') return await handleNudgeOne(body);
   if (action === 'nudge-all-stuck') return await handleNudgeAllStuck();
   if (action !== 'create') {
-    return resp(400, { message: `Unknown action '${action}'. Expected one of: create, nudge, nudge-all-stuck.` });
+    return resp(400, {
+      message: `Unknown action '${action}'. Expected one of: create, nudge, nudge-all-stuck.`,
+    });
   }
 
   const email = (body.email || '').trim().toLowerCase();
-  const apps  = Array.isArray(body.apps) ? body.apps : [];
+  const apps = Array.isArray(body.apps) ? body.apps : [];
 
   if (!email || !email.includes('@')) {
     return resp(400, { message: 'Valid email required' });
@@ -148,8 +159,8 @@ exports.handler = async (event) => {
     return resp(400, { message: 'At least one app must be selected' });
   }
 
-  const groupNames = apps.map(a => APP_TO_GROUP[a]);
-  if (groupNames.some(g => !g)) {
+  const groupNames = apps.map((a) => APP_TO_GROUP[a]);
+  if (groupNames.some((g) => !g)) {
     return resp(400, { message: `Unknown app id; valid: ${Object.keys(APP_TO_GROUP).join(', ')}` });
   }
 
@@ -161,16 +172,18 @@ exports.handler = async (event) => {
   try {
     // Pool has AliasAttributes=["email"] — username can't be the email itself.
     // Use a UUID; the user signs in with their email (alias) at the Hosted UI.
-    await cognito.send(new AdminCreateUserCommand({
-      UserPoolId:        POOL_ID,
-      Username:          username,
-      TemporaryPassword: generateTempPassword(),
-      UserAttributes: [
-        { Name: 'email',          Value: email },
-        { Name: 'email_verified', Value: 'true' },
-      ],
-      DesiredDeliveryMediums: ['EMAIL'],
-    }));
+    await cognito.send(
+      new AdminCreateUserCommand({
+        UserPoolId: POOL_ID,
+        Username: username,
+        TemporaryPassword: generateTempPassword(),
+        UserAttributes: [
+          { Name: 'email', Value: email },
+          { Name: 'email_verified', Value: 'true' },
+        ],
+        DesiredDeliveryMediums: ['EMAIL'],
+      }),
+    );
   } catch (err) {
     if (err.name === 'UsernameExistsException' || err.name === 'AliasExistsException') {
       isNew = false;
@@ -182,11 +195,13 @@ exports.handler = async (event) => {
 
   // Existing user: resolve email alias → real username for AdminAddUserToGroup
   if (!isNew) {
-    const lookup = await cognito.send(new ListUsersCommand({
-      UserPoolId: POOL_ID,
-      Filter:     `email = "${email}"`,
-      Limit:      1,
-    }));
+    const lookup = await cognito.send(
+      new ListUsersCommand({
+        UserPoolId: POOL_ID,
+        Filter: `email = "${email}"`,
+        Limit: 1,
+      }),
+    );
     if (!lookup.Users || lookup.Users.length === 0) {
       return resp(500, { message: `Could not find existing user for ${email}` });
     }
@@ -195,11 +210,13 @@ exports.handler = async (event) => {
 
   for (const grp of groupNames) {
     try {
-      await cognito.send(new AdminAddUserToGroupCommand({
-        UserPoolId: POOL_ID,
-        Username:   username,
-        GroupName:  grp,
-      }));
+      await cognito.send(
+        new AdminAddUserToGroupCommand({
+          UserPoolId: POOL_ID,
+          Username: username,
+          GroupName: grp,
+        }),
+      );
     } catch (err) {
       console.error(`AdminAddUserToGroup ${username} → ${grp} failed:`, err);
       return resp(500, { message: `Could not add to group ${grp}: ${err.message}` });
@@ -214,7 +231,7 @@ exports.handler = async (event) => {
       ? `Invitation email sent to ${email}.`
       : `${email} added to ${groupNames.join(', ')}.`,
   });
-};
+});
 
 // ── GET /invite — list all users + their app groups ────────────────
 
@@ -225,11 +242,13 @@ async function handleListUsers() {
   let paginationToken;
   try {
     do {
-      const page = await cognito.send(new ListUsersCommand({
-        UserPoolId:       POOL_ID,
-        Limit:            60,
-        PaginationToken:  paginationToken,
-      }));
+      const page = await cognito.send(
+        new ListUsersCommand({
+          UserPoolId: POOL_ID,
+          Limit: 60,
+          PaginationToken: paginationToken,
+        }),
+      );
       allUsers.push(...(page.Users || []));
       paginationToken = page.PaginationToken;
     } while (paginationToken);
@@ -247,25 +266,27 @@ async function handleListUsers() {
     while (cursor < allUsers.length) {
       const i = cursor++;
       const u = allUsers[i];
-      const attrs = Object.fromEntries((u.Attributes || []).map(a => [a.Name, a.Value]));
+      const attrs = Object.fromEntries((u.Attributes || []).map((a) => [a.Name, a.Value]));
       let userGroups = [];
       try {
-        const r = await cognito.send(new AdminListGroupsForUserCommand({
-          UserPoolId: POOL_ID,
-          Username:   u.Username,
-        }));
-        userGroups = (r.Groups || []).map(g => g.GroupName);
+        const r = await cognito.send(
+          new AdminListGroupsForUserCommand({
+            UserPoolId: POOL_ID,
+            Username: u.Username,
+          }),
+        );
+        userGroups = (r.Groups || []).map((g) => g.GroupName);
       } catch (err) {
         console.warn(`AdminListGroupsForUser ${u.Username} failed:`, err.message);
       }
       enriched[i] = {
-        username:   u.Username,
-        email:      attrs.email || '',
-        name:       attrs.name  || '',
-        status:     u.UserStatus || '',
-        createdAt:  u.UserCreateDate ? new Date(u.UserCreateDate).toISOString() : null,
-        enabled:    u.Enabled !== false,
-        groups:     userGroups,
+        username: u.Username,
+        email: attrs.email || '',
+        name: attrs.name || '',
+        status: u.UserStatus || '',
+        createdAt: u.UserCreateDate ? new Date(u.UserCreateDate).toISOString() : null,
+        enabled: u.Enabled !== false,
+        groups: userGroups,
       };
     }
   }
@@ -295,11 +316,13 @@ async function handleNudgeOne(body) {
   }
 
   // Look up the user and verify state.
-  const lookup = await cognito.send(new ListUsersCommand({
-    UserPoolId: POOL_ID,
-    Filter:     `email = "${email}"`,
-    Limit:      1,
-  }));
+  const lookup = await cognito.send(
+    new ListUsersCommand({
+      UserPoolId: POOL_ID,
+      Filter: `email = "${email}"`,
+      Limit: 1,
+    }),
+  );
   if (!lookup.Users || lookup.Users.length === 0) {
     return resp(404, { message: `No user with email ${email}` });
   }
@@ -313,12 +336,14 @@ async function handleNudgeOne(body) {
   // Generate a fresh temp password and set it (non-permanent).
   const tempPassword = generateTempPassword();
   try {
-    await cognito.send(new AdminSetUserPasswordCommand({
-      UserPoolId: POOL_ID,
-      Username:   user.Username,
-      Password:   tempPassword,
-      Permanent:  false,
-    }));
+    await cognito.send(
+      new AdminSetUserPasswordCommand({
+        UserPoolId: POOL_ID,
+        Username: user.Username,
+        Password: tempPassword,
+        Permanent: false,
+      }),
+    );
   } catch (err) {
     console.error('AdminSetUserPassword failed:', err);
     return resp(500, { message: err.message || 'Could not reset temp password' });
@@ -329,11 +354,11 @@ async function handleNudgeOne(body) {
   try {
     const { POSTMARK_API_KEY } = await getSecrets();
     await postmark(POSTMARK_API_KEY, {
-      To:            email,
-      From:          FROM_EMAIL,
-      Subject:       `Reminder: complete your jaetill.com sign-in`,
-      TextBody:      buildNudgeText({ email, tempPassword }),
-      HtmlBody:      buildNudgeHtml({ email, tempPassword }),
+      To: email,
+      From: FROM_EMAIL,
+      Subject: `Reminder: complete your jaetill.com sign-in`,
+      TextBody: buildNudgeText({ email, tempPassword }),
+      HtmlBody: buildNudgeHtml({ email, tempPassword }),
       MessageStream: 'outbound',
     });
   } catch (err) {
@@ -353,11 +378,13 @@ async function handleNudgeAllStuck() {
   let paginationToken;
   try {
     do {
-      const page = await cognito.send(new ListUsersCommand({
-        UserPoolId:      POOL_ID,
-        Limit:           60,
-        PaginationToken: paginationToken,
-      }));
+      const page = await cognito.send(
+        new ListUsersCommand({
+          UserPoolId: POOL_ID,
+          Limit: 60,
+          PaginationToken: paginationToken,
+        }),
+      );
       allUsers.push(...(page.Users || []));
       paginationToken = page.PaginationToken;
     } while (paginationToken);
@@ -367,7 +394,7 @@ async function handleNudgeAllStuck() {
   }
 
   // Filter to stuck users.
-  const stuck = allUsers.filter(u => u.UserStatus === 'FORCE_CHANGE_PASSWORD');
+  const stuck = allUsers.filter((u) => u.UserStatus === 'FORCE_CHANGE_PASSWORD');
   if (stuck.length === 0) {
     return resp(200, { sent: 0, skipped: 0, total: 0, message: 'No stuck users to nudge.' });
   }
@@ -383,7 +410,7 @@ async function handleNudgeAllStuck() {
 
   const results = { sent: 0, skipped: 0, errors: [] };
   for (const u of stuck) {
-    const attrs = Object.fromEntries((u.Attributes || []).map(a => [a.Name, a.Value]));
+    const attrs = Object.fromEntries((u.Attributes || []).map((a) => [a.Name, a.Value]));
     const email = (attrs.email || '').toLowerCase();
     if (!email) {
       results.errors.push({ username: u.Username, reason: 'no email attribute' });
@@ -401,18 +428,20 @@ async function handleNudgeAllStuck() {
     // abort the batch.
     try {
       const tempPassword = generateTempPassword();
-      await cognito.send(new AdminSetUserPasswordCommand({
-        UserPoolId: POOL_ID,
-        Username:   u.Username,
-        Password:   tempPassword,
-        Permanent:  false,
-      }));
+      await cognito.send(
+        new AdminSetUserPasswordCommand({
+          UserPoolId: POOL_ID,
+          Username: u.Username,
+          Password: tempPassword,
+          Permanent: false,
+        }),
+      );
       await postmark(POSTMARK_API_KEY, {
-        To:            email,
-        From:          FROM_EMAIL,
-        Subject:       `Reminder: complete your jaetill.com sign-in`,
-        TextBody:      buildNudgeText({ email, tempPassword }),
-        HtmlBody:      buildNudgeHtml({ email, tempPassword }),
+        To: email,
+        From: FROM_EMAIL,
+        Subject: `Reminder: complete your jaetill.com sign-in`,
+        TextBody: buildNudgeText({ email, tempPassword }),
+        HtmlBody: buildNudgeHtml({ email, tempPassword }),
         MessageStream: 'outbound',
       });
       lastNudgedAt.set(email, Date.now());
@@ -446,9 +475,13 @@ function buildNudgeText({ email, tempPassword }) {
 }
 
 function buildNudgeHtml({ email, tempPassword }) {
-  const e = (s) => String(s)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  const e = (s) =>
+    String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   return `<!doctype html>
 <html><body style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;color:#1e293b;max-width:560px;margin:0 auto;padding:24px;">
   <p>Hi,</p>
@@ -471,24 +504,27 @@ function buildNudgeHtml({ email, tempPassword }) {
 function postmark(apiKey, msg) {
   return new Promise((resolve, reject) => {
     const body = JSON.stringify(msg);
-    const req  = https.request({
-      hostname: 'api.postmarkapp.com',
-      path:     '/email',
-      method:   'POST',
-      headers:  {
-        'Accept':                  'application/json',
-        'Content-Type':            'application/json',
-        'X-Postmark-Server-Token': apiKey,
-        'Content-Length':          Buffer.byteLength(body),
+    const req = https.request(
+      {
+        hostname: 'api.postmarkapp.com',
+        path: '/email',
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'X-Postmark-Server-Token': apiKey,
+          'Content-Length': Buffer.byteLength(body),
+        },
       },
-    }, res => {
-      let data = '';
-      res.on('data', c => data += c);
-      res.on('end', () => {
-        if (res.statusCode >= 200 && res.statusCode < 300) resolve(JSON.parse(data));
-        else reject(new Error(`Postmark ${res.statusCode}: ${data}`));
-      });
-    });
+      (res) => {
+        let data = '';
+        res.on('data', (c) => (data += c));
+        res.on('end', () => {
+          if (res.statusCode >= 200 && res.statusCode < 300) resolve(JSON.parse(data));
+          else reject(new Error(`Postmark ${res.statusCode}: ${data}`));
+        });
+      },
+    );
     req.on('error', reject);
     req.write(body);
     req.end();
