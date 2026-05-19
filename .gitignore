@@ -32,3 +32,9 @@ site/
 # ESLint cache (Phase 3)
 .eslintcache
 .claude/settings.local.json
+
+# OpenTofu / Terraform
+.terraform/
+*.tfplan
+*.tfstate
+*.tfstate.backup
