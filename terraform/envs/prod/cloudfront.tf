@@ -1,4 +1,4 @@
-# CloudFront distribution E3L96MPPOA7GTI — jaetill.com apex + www subdomain.
+# CloudFront distribution E3L96MPPOA7GTI - jaetill.com apex + www subdomain.
 # OAC E209SBSPLCBS9N restricts S3 access to this distribution.
 
 resource "aws_cloudfront_origin_access_control" "main" {
@@ -10,11 +10,13 @@ resource "aws_cloudfront_origin_access_control" "main" {
 }
 
 resource "aws_cloudfront_distribution" "main" {
-  enabled         = true
-  comment         = "jaetill-portal apex (jaetill.com)"
-  price_class     = "PriceClass_100"
-  is_ipv6_enabled = true
-  aliases         = ["www.jaetill.com", "jaetill.com"]
+  enabled             = true
+  comment             = "jaetill-portal apex (jaetill.com)"
+  price_class         = "PriceClass_100"
+  is_ipv6_enabled     = true
+  aliases             = ["www.jaetill.com", "jaetill.com"]
+  default_root_object = "index.html"
+  http_version        = "http2and3"
 
   origin {
     domain_name              = aws_s3_bucket.main.bucket_regional_domain_name
@@ -31,11 +33,22 @@ resource "aws_cloudfront_distribution" "main" {
     viewer_protocol_policy = "redirect-to-https"
     allowed_methods        = ["GET", "HEAD"]
     cached_methods         = ["GET", "HEAD"]
+    compress               = true
+    cache_policy_id        = "658327ea-f89d-4fab-a63d-7e88639e58f6"
+  }
 
-    forwarded_values {
-      query_string = false
-      cookies { forward = "none" }
-    }
+  custom_error_response {
+    error_code            = 403
+    response_code         = 200
+    response_page_path    = "/index.html"
+    error_caching_min_ttl = 10
+  }
+
+  custom_error_response {
+    error_code            = 404
+    response_code         = 200
+    response_page_path    = "/index.html"
+    error_caching_min_ttl = 10
   }
 
   viewer_certificate {
@@ -45,19 +58,6 @@ resource "aws_cloudfront_distribution" "main" {
     ssl_support_method             = "sni-only"
   }
 
-
-  custom_error_response {
-    error_code            = 403
-    response_code         = 200
-    response_page_path    = "/index.html"
-    error_caching_min_ttl = 10
-  }
-  custom_error_response {
-    error_code            = 404
-    response_code         = 200
-    response_page_path    = "/index.html"
-    error_caching_min_ttl = 10
-  }
   restrictions {
     geo_restriction {
       restriction_type = "none"
