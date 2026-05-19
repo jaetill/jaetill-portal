@@ -1,3 +1,4 @@
+import './feedback.js';
 import { isAuthenticated, startLogin, logout, parseIdToken, getIdToken, getAccessToken } from './auth.js';
 import { registerPasskey, listPasskeys, deletePasskey } from './passkey.js';
 import { appsForUser } from './apps.js';
