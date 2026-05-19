@@ -1,2 +1,1 @@
-# Phase 6 Slice 1 import blocks - all applied 2026-05-17.
-# Resources now in state; import blocks removed.
+# Slice 2 (IAM) applied 2026-05-19. Slice 1+2 imports complete.
