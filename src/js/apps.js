@@ -10,39 +10,49 @@
 
 export const APPS = [
   {
-    id:          'meal-planner',
-    name:        'Meal Planner',
+    id: 'meal-planner',
+    name: 'Meal Planner',
     description: 'Weekly meals, grocery lists, Kroger pricing.',
-    url:         'https://meals.jaetill.com',
-    icon:        '🥗',
-    accent:      'from-green-50 to-emerald-100',
-    groups:      ['meal-planner-users'],
+    url: 'https://meals.jaetill.com',
+    icon: '🥗',
+    accent: 'from-green-50 to-emerald-100',
+    groups: ['meal-planner-users'],
   },
   {
-    id:          'game-night',
-    name:        'Game Night',
+    id: 'game-night',
+    name: 'Game Night',
     description: 'Plan game nights with friends.',
-    url:         'https://gamenights.jaetill.com',
-    icon:        '🎲',
-    accent:      'from-purple-50 to-violet-100',
-    groups:      ['game-night-users'],
+    url: 'https://gamenights.jaetill.com',
+    icon: '🎲',
+    accent: 'from-purple-50 to-violet-100',
+    groups: ['game-night-users'],
   },
   {
-    id:          'carto',
-    name:        'Carto',
+    id: 'carto',
+    name: 'Carto',
     description: 'Penetration-testing engagement maps.',
-    url:         'https://carto.jaetill.com',
-    icon:        '🗺️',
-    accent:      'from-blue-50 to-cyan-100',
-    groups:      ['carto-users'],
+    url: 'https://carto.jaetill.com',
+    icon: '🗺️',
+    accent: 'from-blue-50 to-cyan-100',
+    groups: ['carto-users'],
     // No `hidden` — only users in carto-users (currently just jaetill) see this tile.
+  },
+  {
+    id: 'splendor',
+    name: 'Splendor',
+    description: 'Marvel Splendor against AI opponents.',
+    url: 'https://splendor.jaetill.com',
+    icon: '💎',
+    accent: 'from-rose-50 to-pink-100',
+    groups: [],
+    // Empty `groups`: any signed-in user may play (no per-app allowance needed).
   },
 ];
 
 export function appsForUser(claims) {
   const userGroups = (claims && claims['cognito:groups']) || [];
-  return APPS.filter(app =>
-    !app.hidden &&
-    (app.groups.length === 0 || app.groups.some(g => userGroups.includes(g)))
+  return APPS.filter(
+    (app) =>
+      !app.hidden && (app.groups.length === 0 || app.groups.some((g) => userGroups.includes(g))),
   );
 }
