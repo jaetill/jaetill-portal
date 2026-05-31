@@ -70,7 +70,7 @@ export default [
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',
-      globals: { ...globals.node, ...globals.browser, ...globals.es2022 },
+      globals: { ...globals.node, ...globals.browser, ...globals.es2022, ...globals.vitest },
     },
     rules: {
       'no-console': 'off',
