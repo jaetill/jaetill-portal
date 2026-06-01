@@ -51,6 +51,14 @@ describe('appsForUser', () => {
     }
   });
 
+  test('user in multiple groups sees all their authorized apps plus groups-empty apps', () => {
+    const result = appsForUser({ 'cognito:groups': ['meal-planner-users', 'game-night-users'] });
+    expect(result.some((app) => app.id === 'meal-planner')).toBe(true);
+    expect(result.some((app) => app.id === 'game-night')).toBe(true);
+    expect(result.some((app) => app.id === 'splendor')).toBe(true);
+    expect(result.some((app) => app.id === 'carto')).toBe(false);
+  });
+
   test('splendor (groups:[]) is visible to every authenticated user', () => {
     const withGroups = appsForUser({
       'cognito:groups': ['meal-planner-users', 'game-night-users'],
