@@ -49,9 +49,9 @@ data "aws_iam_policy_document" "iac_drift_tfstate" {
     resources = ["arn:aws:s3:::jaetill-tfstate", "arn:aws:s3:::jaetill-tfstate/*"]
   }
   statement {
-    sid       = "TFStateLockRead"
+    sid       = "TFStateLock"
     effect    = "Allow"
-    actions   = ["dynamodb:GetItem"]
+    actions   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem"]
     resources = ["arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/terraform-state-lock"]
   }
 }
