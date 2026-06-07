@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.1.0](https://github.com/jaetill/jaetill-portal/compare/v1.0.0...v1.1.0) (2026-06-07)
+
+
+### Features
+
+* **iac:** add ADR-0035 iac-additive-guard caller ([#280](https://github.com/jaetill/jaetill-portal/issues/280)) ([#51](https://github.com/jaetill/jaetill-portal/issues/51)) ([250e9d0](https://github.com/jaetill/jaetill-portal/commit/250e9d0ef52886a5cbb1087ad754cd2b74d133ca))
+
+
+### Bug Fixes
+
+* **iac:** grant full DynamoDB lock lifecycle to iac-drift role ([#57](https://github.com/jaetill/jaetill-portal/issues/57)) ([#60](https://github.com/jaetill/jaetill-portal/issues/60)) ([0755e1c](https://github.com/jaetill/jaetill-portal/commit/0755e1cea399c0e38ba81d56d0b38a797cc7ae8e))
+* **iam:** accept environment-scoped OIDC sub for gated prod deploys (ADR-0043) ([#38](https://github.com/jaetill/jaetill-portal/issues/38)) ([04892b7](https://github.com/jaetill/jaetill-portal/commit/04892b795c78f41307ef60558de2f1beb240c278))
+
 ## 1.0.0 (2026-05-23)
 
 
