@@ -10,10 +10,12 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write   # ceiling for the reusable's publish job; generate job downgrades to read
-  id-token: write
+  contents: write # ceiling for publish job (commits to reports/dep-watch); generate job uses read only
+  id-token: write # OIDC for claude-code-action in generate job
 
 jobs:
   dep-watch:
-    uses: jaetill/agentic-dev-environment/.github/workflows/dep-watch.yml@main
+    # Pin to SHA so contents:write never goes to an unreviewed @main commit.
+    # Update SHA after reviewing the platform changelog.
+    uses: jaetill/agentic-dev-environment/.github/workflows/dep-watch.yml@9d5194669c5ff54af99e180b93f337d759ec6f5d
     secrets: inherit
