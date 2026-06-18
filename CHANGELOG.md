@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.1.0](https://github.com/jaetill/jaetill-portal/compare/v1.0.0...v1.1.0) (2026-06-18)
+
+
+### Features
+
+* **iac:** add ADR-0035 iac-additive-guard caller ([#280](https://github.com/jaetill/jaetill-portal/issues/280)) ([#51](https://github.com/jaetill/jaetill-portal/issues/51)) ([250e9d0](https://github.com/jaetill/jaetill-portal/commit/250e9d0ef52886a5cbb1087ad754cd2b74d133ca))
+
+
+### Bug Fixes
+
+* **ci:** pin dep-watch reusable to commit SHA ([#50](https://github.com/jaetill/jaetill-portal/issues/50)) ([#63](https://github.com/jaetill/jaetill-portal/issues/63)) ([eeb98d2](https://github.com/jaetill/jaetill-portal/commit/eeb98d2fe3a04a66b0b5f99c3916f0e42fdb69b9))
+* **ci:** pin iac-guard reusable workflow to commit SHA ([#62](https://github.com/jaetill/jaetill-portal/issues/62)) ([77d79f4](https://github.com/jaetill/jaetill-portal/commit/77d79f42630e89126d1c5fc4d928ba594dcc2a5b)), closes [#53](https://github.com/jaetill/jaetill-portal/issues/53)
+* **ci:** scope reusable secrets explicitly (ADR-0048) ([#64](https://github.com/jaetill/jaetill-portal/issues/64)) ([b862fb8](https://github.com/jaetill/jaetill-portal/commit/b862fb8def2b37f527e25e6563cee549986b66d4))
+* **iac:** grant full DynamoDB lock lifecycle to iac-drift role ([#57](https://github.com/jaetill/jaetill-portal/issues/57)) ([#60](https://github.com/jaetill/jaetill-portal/issues/60)) ([0755e1c](https://github.com/jaetill/jaetill-portal/commit/0755e1cea399c0e38ba81d56d0b38a797cc7ae8e))
+* **iam:** accept environment-scoped OIDC sub for gated prod deploys (ADR-0043) ([#38](https://github.com/jaetill/jaetill-portal/issues/38)) ([04892b7](https://github.com/jaetill/jaetill-portal/commit/04892b795c78f41307ef60558de2f1beb240c278))
+
 ## 1.0.0 (2026-05-23)
 
 
