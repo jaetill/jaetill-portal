@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/jaetill/jaetill-portal/compare/v1.1.0...v1.1.1) (2026-06-21)
+
+
+### Bug Fixes
+
+* **ci:** pin release reusable workflow to commit SHA ([#65](https://github.com/jaetill/jaetill-portal/issues/65)) ([ffe6d29](https://github.com/jaetill/jaetill-portal/commit/ffe6d29fa6e19a86a15538b32ed703bea9ff412b)), closes [#47](https://github.com/jaetill/jaetill-portal/issues/47)
+
 ## [1.1.0](https://github.com/jaetill/jaetill-portal/compare/v1.0.0...v1.1.0) (2026-06-18)
 
 
