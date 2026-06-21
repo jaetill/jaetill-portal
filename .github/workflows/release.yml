@@ -17,7 +17,9 @@ permissions:
 
 jobs:
   release:
-    uses: jaetill/agentic-dev-environment/.github/workflows/release.yml@main
+    # Pin to SHA so contents:write never goes to an unreviewed @main commit.
+    # Update SHA after reviewing the platform changelog.
+    uses: jaetill/agentic-dev-environment/.github/workflows/release.yml@20305ab7d1515b6c42c562863d21d61624341354
     with:
       release-type: node
     secrets: inherit
