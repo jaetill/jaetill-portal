@@ -91,13 +91,11 @@ resource "aws_iam_role" "github_deploy" {
         Condition = {
           StringEquals = {
             "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+            # Pin both sub patterns to main at the IAM layer (defense-in-depth over
+            # GitHub's environment-protection branch restriction). Fixes #39.
+            "token.actions.githubusercontent.com:ref" = "refs/heads/main"
           }
           StringLike = {
-            # ref:…/main  → direct pushes to main (branch-scoped at IAM level)
-            # environment:production → ADR-0043 approval gate; NOT branch-scoped here.
-            # Branch constraint is enforced by GitHub: production environment is
-            # restricted to protected branches only (main). Do not widen that
-            # GitHub setting without re-adding a branch condition to this policy.
             "token.actions.githubusercontent.com:sub" = ["repo:jaetill/jaetill-portal:ref:refs/heads/main", "repo:jaetill/jaetill-portal:environment:production"]
           }
         }
