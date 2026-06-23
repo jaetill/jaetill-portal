@@ -91,8 +91,9 @@ resource "aws_iam_role" "github_deploy" {
         Condition = {
           StringEquals = {
             "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-            # Pin both sub patterns to main at the IAM layer (defense-in-depth over
-            # GitHub's environment-protection branch restriction). Fixes #39.
+            # Pin both sub patterns to main at the IAM layer. Fixes #39.
+            # Also MUST configure: Settings → Environments → production →
+            # Deployment branches → Protected branches only (main). Verify it is active.
             "token.actions.githubusercontent.com:ref" = "refs/heads/main"
           }
           StringLike = {
