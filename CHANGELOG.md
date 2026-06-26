@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.1.2](https://github.com/jaetill/jaetill-portal/compare/v1.1.1...v1.1.2) (2026-06-26)
+
+
+### Bug Fixes
+
+* **ci:** drop unused IMPLEMENTER_PAT forwarding from implementer caller (refs [#363](https://github.com/jaetill/jaetill-portal/issues/363)) ([#72](https://github.com/jaetill/jaetill-portal/issues/72)) ([e35143e](https://github.com/jaetill/jaetill-portal/commit/e35143ee23f7c233a270861b294af100f111e1bd))
+* **iac:** scope iac-drift role off ReadOnlyAccess to narrow introspect policy ([#297](https://github.com/jaetill/jaetill-portal/issues/297)) ([#73](https://github.com/jaetill/jaetill-portal/issues/73)) ([6b5d6d9](https://github.com/jaetill/jaetill-portal/commit/6b5d6d9d99231a4118988a3efd53e847a5d5c7e4))
+* **iam:** add ref claim constraint to pin OIDC trust to main branch ([#39](https://github.com/jaetill/jaetill-portal/issues/39)) ([#70](https://github.com/jaetill/jaetill-portal/issues/70)) ([8479c16](https://github.com/jaetill/jaetill-portal/commit/8479c16d3a05746b9267b6b0490512734ca7554f))
+* **iam:** document environment:production OIDC sub is not branch-scoped ([#67](https://github.com/jaetill/jaetill-portal/issues/67)) ([78f5355](https://github.com/jaetill/jaetill-portal/commit/78f5355aab6208f33e87c4eaa09494e2fdcdd9c5)), closes [#40](https://github.com/jaetill/jaetill-portal/issues/40)
+* **iam:** reword ref-constraint comment as obligation not assertion ([#71](https://github.com/jaetill/jaetill-portal/issues/71)) ([2a55d5c](https://github.com/jaetill/jaetill-portal/commit/2a55d5c75f15b8329e7640127ba4176867fa7f5c)), closes [#68](https://github.com/jaetill/jaetill-portal/issues/68)
+
 ## [1.1.1](https://github.com/jaetill/jaetill-portal/compare/v1.1.0...v1.1.1) (2026-06-21)
 
 
