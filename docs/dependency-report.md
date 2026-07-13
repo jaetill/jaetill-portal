@@ -1,39 +1,50 @@
-## Dependency Watch (2026-07-06)
+## Dependency Watch (2026-07-13)
 
----
+### Root — `package.json` (`jaetill-portal`)
 
-### `package.json` (root — frontend / Vite build)
+#### Moderate / Minor bumps available
 
-**Security audit:** No vulnerabilities found (0 prod advisories).
-
-#### Minor/patch updates (low priority — batch in monthly sweep)
-
-| Package | Installed | Latest | Notes |
-|---|---|---|---|
-| `@sentry/browser` | 10.53.1 | 10.63.0 | Minor bump within v10; no breaking changes expected |
-
----
-
-### `lambda/package.json` (Lambda — invite handler)
-
-**Security audit:** 18 moderate advisories.
-
-#### Moderate security advisories (update recommended)
-
-| Advisory | Package | Severity | CVSS | Fix |
+| Package | Current | Wanted | Latest | Kind |
 |---|---|---|---|---|
-| [GHSA-8988-4f7v-96qf](https://github.com/advisories/GHSA-8988-4f7v-96qf) | `@opentelemetry/core` (transitive via `@sentry/aws-serverless`) | Moderate | 5.3 | Upgrade `@sentry/aws-serverless` to `^10.63.0` |
+| `@sentry/browser` | ~10.53.1 | 10.65.0 | 10.65.0 | minor |
 
-**Root cause:** `@sentry/aws-serverless@9.47.1` pulls in `@opentelemetry/core <2.8.0`, which has an unbounded memory allocation vulnerability in W3C Baggage propagation (CWE-770). The 18 reported entries are all downstream instrumentation packages that share the same root cause.
+**Risk:** Minor release within the same major; no breaking changes expected. Batch into monthly sweep.
 
-**Fix:** Bump `@sentry/aws-serverless` from `^9.0.0` → `^10.0.0` in `lambda/package.json`. This is a **major version bump (9→10)** — review the [Sentry v10 migration guide](https://docs.sentry.io/platforms/javascript/migration/v9-to-v10/) for breaking changes before updating. The Lambda handler in `lambda/invite.js` should be audited for any deprecated SDK APIs.
+#### Security advisories
 
-#### Major version bumps available (note — breaking-change risk)
+None. `npm audit --omit=dev` reports 0 vulnerabilities across 7 production dependencies.
 
-| Package | Installed | Latest | Breaking-change risk |
+---
+
+### Lambda — `lambda/package.json` (`jaetill-portal-lambdas`)
+
+#### Moderate security advisory — action recommended
+
+| Package | Current | Fix version | CVE / Advisory | Severity | CVSS |
+|---|---|---|---|---|---|
+| `@sentry/aws-serverless` (via `@opentelemetry/core`) | 9.x | 10.65.0 | [GHSA-8988-4f7v-96qf](https://github.com/advisories/GHSA-8988-4f7v-96qf) | Moderate | 5.3 |
+
+`npm audit` reports **18 moderate findings**, all rooted in the same vulnerability:
+
+> **OpenTelemetry Core: Unbounded memory allocation in W3C Baggage propagation** (`@opentelemetry/core < 2.8.0`, CWE-770).  
+> A remote unauthenticated attacker can send a crafted HTTP request with a large `baggage` header, causing unbounded memory allocation and potential DoS.
+
+`@sentry/aws-serverless ≤ 9.47.1` bundles `@opentelemetry/core < 2.8.0` transitively. The fix requires upgrading `@sentry/aws-serverless` to **10.65.0**, which is a **major version bump** (9 → 10). Review the [Sentry v10 migration guide](https://docs.sentry.io/platforms/javascript/migration/v9-to-v10/) for breaking changes before updating.
+
+**Recommended action:** Upgrade `@sentry/aws-serverless` to `^10.0.0` in `lambda/package.json`, validate the Lambda handler still initialises correctly, then redeploy.
+
+#### Major version bump available
+
+| Package | Current range | Latest major | Breaking-change risk |
 |---|---|---|---|
-| `@sentry/aws-serverless` | 9.47.1 | 10.63.0 | **Required for the security fix above.** v10 drops some deprecated APIs; see migration guide. |
-| `@octokit/rest` | 21.1.1 | 22.0.1 | Major bump; review [Octokit v22 changelog](https://github.com/octokit/rest.js/releases) for removed/renamed methods before updating. No known security advisory. |
+| `@octokit/rest` | `^21.0.0` (resolved 21.1.1) | 22.0.1 | Medium — review changelog; REST client interface changes between majors |
+| `@sentry/aws-serverless` | `^9.0.0` (resolved 9.47.1) | 10.65.0 | Medium — see security item above; upgrade is also needed for the audit fix |
+
+Both major bumps warrant a read of the respective changelogs before merging. `@octokit/rest` v22 carries no known security advisory; it can be scheduled in the next planned maintenance window.
+
+#### Minor/patch bumps available
+
+None beyond the major versions noted above.
 
 ---
 
@@ -41,7 +52,7 @@
 
 | Severity | Count | Action |
 |---|---|---|
-| Critical/High security | 0 | — |
-| Moderate security | 18 (root: 1 advisory) | Update `@sentry/aws-serverless` 9→10 in `lambda/`; major bump, review migration guide |
-| Major version bump | 2 | `@sentry/aws-serverless` 9→10 (security-driven), `@octokit/rest` 21→22 (no CVE) |
-| Minor/patch bump | 1 | `@sentry/browser` 10.53→10.63 in root; batch with monthly sweep |
+| CRITICAL / HIGH security | 0 | — |
+| Moderate security (audit) | 18 (one root cause) | Upgrade `lambda/` `@sentry/aws-serverless` → `^10.0.0` |
+| Major version bump | 2 | Schedule: `@sentry/aws-serverless` (tied to audit fix), `@octokit/rest` (next maintenance) |
+| Minor / patch bump | 1 | Batch in monthly sweep: root `@sentry/browser` |
