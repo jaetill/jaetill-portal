@@ -144,7 +144,7 @@ function renderAdminSection() {
   return `
     <section class="mt-8 bg-white rounded-xl p-6 shadow-sm">
       <h2 class="font-semibold text-gray-900">Invite a user</h2>
-      <p class="text-sm text-gray-500 mt-0.5">Cognito will send them an invitation email with a temp password. They land on this portal and see the apps you grant.</p>
+      <p class="text-sm text-gray-500 mt-0.5">They get an email from jason@jaetill.com with a temporary password and a link to this portal, where they'll set a real password and see the apps you grant.</p>
       <form id="invite-form" class="mt-4 space-y-3" novalidate>
         <input type="email" id="invite-email" placeholder="alice@example.com" required
                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
@@ -342,9 +342,14 @@ async function handleInviteSubmit(e) {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
+    // A new account whose invite email didn't send is a partial success: the
+    // user exists but has no way in yet. Don't dress that up as green.
+    const stranded = data.isNew && data.emailSent === false;
     status.textContent = data.message;
-    status.className = 'text-sm text-green-600';
+    status.className = `text-sm ${stranded ? 'text-amber-700' : 'text-green-600'}`;
     document.getElementById('invite-form').reset();
+    // Show them in the table right away — they may need a Nudge or a Delete.
+    loadAdminUsers();
   } catch (err) {
     status.textContent = `Failed: ${err.message}`;
     status.className = 'text-sm text-red-600';
