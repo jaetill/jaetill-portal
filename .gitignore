@@ -38,3 +38,6 @@ site/
 *.tfplan
 *.tfstate
 *.tfstate.backup
+
+# Local Lambda rollback snapshots (see docs/runbooks/deploy.md)
+.deploy-backup/

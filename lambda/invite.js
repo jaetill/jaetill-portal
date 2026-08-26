@@ -46,7 +46,12 @@ async function getSecrets() {
 }
 
 const FROM_EMAIL = process.env.FROM_EMAIL || 'jason@jaetill.com';
-const SIGN_IN_URL = process.env.SIGN_IN_URL || 'https://just.jaetill.com/';
+// Must be the PORTAL, not the Cognito custom domain. `just.jaetill.com` serves
+// only /login, /oauth2/*, /logout and /error — its root returns 404, which is
+// exactly what invitees saw when they clicked "Sign in" in this email. The
+// portal root runs the PKCE redirect itself (generating verifier + state and
+// supplying the right client_id), which a static email link cannot do.
+const SIGN_IN_URL = process.env.SIGN_IN_URL || 'https://jaetill.com/';
 
 // In-memory per-user cooldown to absorb accidental double-clicks.
 // Survives warm Lambda invocations; resets on cold start. Per ADR-0014's
