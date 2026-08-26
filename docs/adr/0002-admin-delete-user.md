@@ -1,6 +1,6 @@
 # ADR-0002: Admin user deletion from the portal
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-08-26
 - **Deciders:** Jason Tilley
 - **Tags:** security, admin, cognito, iam
@@ -59,31 +59,31 @@ The bundle is internally consistent because hard-delete is the only Cognito-nati
 
 ### Sub-decision 1: Deletion model
 
-| Option | Pros | Cons |
-|---|---|---|
-| **Hard-delete** (chosen) | Only Cognito-native option; no custom state to maintain; immediate and total | Irreversible; orphans sibling-app data; broader IAM scope |
-| **Soft-delete** (disable + flag) | Reversible; data stays intact | Cognito has no native disable-user API — would require a custom attribute or DynamoDB side-table; user can still hold a valid refresh token until it expires |
-| **Group-removal only** | No new IAM permission; non-destructive | User retains a valid Cognito account and can still sign in (just sees no tiles); does not fix mistyped-email problem at all |
+| Option                           | Pros                                                                         | Cons                                                                                                                                                         |
+| -------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Hard-delete** (chosen)         | Only Cognito-native option; no custom state to maintain; immediate and total | Irreversible; orphans sibling-app data; broader IAM scope                                                                                                    |
+| **Soft-delete** (disable + flag) | Reversible; data stays intact                                                | Cognito has no native disable-user API — would require a custom attribute or DynamoDB side-table; user can still hold a valid refresh token until it expires |
+| **Group-removal only**           | No new IAM permission; non-destructive                                       | User retains a valid Cognito account and can still sign in (just sees no tiles); does not fix mistyped-email problem at all                                  |
 
 ### Sub-decision 2: Self-deletion guard
 
-| Option | Pros | Cons |
-|---|---|---|
-| **Server-side refusal** (chosen) | Enforced regardless of client; matches on both username claim and email claim for robustness | Relies on JWT claims being present — a misconfigured token scope could bypass the check (mitigated: `aws.cognito.signin.user.admin` scope is required and includes these claims) |
-| **Client-side only** | Simpler Lambda code | Trivially bypassable with a direct API call; single point of failure |
-| **No guard** | Simplest | Admin deletes themselves, loses all portal access, no recovery without CLI |
+| Option                           | Pros                                                                                         | Cons                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| -------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Server-side refusal** (chosen) | Enforced regardless of client; matches on both username claim and email claim for robustness | Relies on JWT claims being present. `cognito:username` is always present in an ID token, and the API Gateway Cognito authorizer forwards ID-token claims, so the primary match is dependable; the `email` fallback covers only the case where it somehow is not. Note this is **not** related to the `aws.cognito.signin.user.admin` scope, which governs access-token user-pool operations rather than ID-token claim contents |
+| **Client-side only**             | Simpler Lambda code                                                                          | Trivially bypassable with a direct API call; single point of failure                                                                                                                                                                                                                                                                                                                                                            |
+| **No guard**                     | Simplest                                                                                     | Admin deletes themselves, loses all portal access, no recovery without CLI                                                                                                                                                                                                                                                                                                                                                      |
 
 ### Sub-decision 3: Confirmation UX
 
-| Option | Pros | Cons |
-|---|---|---|
-| **Status-aware `confirm()`** (chosen) | Zero additional dependencies; warning text explains data impact for active users vs. trivial cleanup for pending users | `confirm()` is modal and browser-native — not styled; cannot include rich formatting |
-| **Custom modal with typed confirmation** (e.g. "type the email to confirm") | Harder to accidentally confirm; can include richer warning | Over-engineered for a single-admin tool with ~10 users; adds UI complexity |
-| **No confirmation** | Fastest flow | One mis-click deletes a user irreversibly |
+| Option                                                                      | Pros                                                                                                                   | Cons                                                                                 |
+| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| **Status-aware `confirm()`** (chosen)                                       | Zero additional dependencies; warning text explains data impact for active users vs. trivial cleanup for pending users | `confirm()` is modal and browser-native — not styled; cannot include rich formatting |
+| **Custom modal with typed confirmation** (e.g. "type the email to confirm") | Harder to accidentally confirm; can include richer warning                                                             | Over-engineered for a single-admin tool with ~10 users; adds UI complexity           |
+| **No confirmation**                                                         | Fastest flow                                                                                                           | One mis-click deletes a user irreversibly                                            |
 
 ## Implementation notes
 
-- **IAM policy:** `lambda/iam/cognito-admin.json` now includes `cognito-idp:AdminDeleteUser` scoped to the shared pool ARN. This file is documentation — the actual IAM policy must be updated manually (IaC is deferred per ADR-0001 Phase 6).
+- **IAM policy:** `lambda/iam/cognito-admin.json` now includes `cognito-idp:AdminDeleteUser` scoped to the shared pool ARN. The file is a committed copy, not the source of truth — the live policy is applied manually with `aws iam put-role-policy` (IaC is deferred per ADR-0001 Phase 6). It was applied on 2026-08-26, ahead of this ADR merging, so live and committed agree today; nothing enforces that they keep agreeing until Phase 6 lands.
 - **Lambda handler:** `lambda/invite.js` dispatches `POST { action: 'delete', email }` to `handleDeleteUser()`. The handler looks up the user by email filter, checks self-deletion, then calls `AdminDeleteUser`.
 - **Frontend:** `src/js/main.js` renders a red "Delete" button on every row in the admin user table. The `confirm()` prompt varies by user status.
 - **Nudge cooldown cleanup:** `lastNudgedAt.delete(email)` is called after successful deletion so that a re-invite to the same address is not throttled.
