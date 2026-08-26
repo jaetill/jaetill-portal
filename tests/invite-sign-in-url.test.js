@@ -4,20 +4,18 @@ import { resolve } from 'node:path';
 
 // Regression guard for the "sign-in link 404s" bug.
 //
-// `lambda/invite.js` builds the nudge email's "Sign in" button from
-// SIGN_IN_URL. It was defaulting to `https://just.jaetill.com/` — the Cognito
+// SIGN_IN_URL was defaulting to `https://just.jaetill.com/` — the Cognito
 // custom domain. That host only serves /login, /oauth2/*, /logout and /error;
-// its root returns 404, so every invitee who clicked the button hit a dead end.
+// its root returns 404, so every invitee who clicked "Sign in" hit a dead end.
 //
-// This asserts on source text rather than importing the module: invite.js
-// constructs AWS SDK clients at module scope, and @aws-sdk/* is supplied by the
-// Lambda runtime rather than lambda/package.json, so it does not resolve here.
-// If those templates ever move into a dependency-free lib/ module, replace this
-// with a real unit test of the builders.
-
-// Resolved from the Vitest root (the project root) rather than import.meta.url:
-// under the happy-dom environment import.meta.url is an http: URL from Vite's
-// transform pipeline, not a file: URL, so fileURLToPath rejects it.
+// The email bodies themselves are covered properly in emails.test.js, which
+// imports lambda/lib/emails.js. This file guards only the value invite.js feeds
+// them, which cannot be imported: invite.js constructs AWS SDK clients at
+// module scope and @aws-sdk/* is supplied by the Lambda runtime rather than
+// lambda/package.json, so it does not resolve here. Hence a source assertion.
+//
+// Resolved from the Vitest root rather than import.meta.url: under happy-dom
+// that is an http: URL from Vite's transform pipeline, not a file: URL.
 const SOURCE = readFileSync(resolve(process.cwd(), 'lambda/invite.js'), 'utf8');
 
 describe('invite.js SIGN_IN_URL', () => {
@@ -26,16 +24,18 @@ describe('invite.js SIGN_IN_URL', () => {
       /const SIGN_IN_URL\s*=\s*process\.env\.SIGN_IN_URL\s*\|\|\s*'([^']+)'/,
     );
     expect(match, 'SIGN_IN_URL declaration not found — did it get renamed?').not.toBeNull();
+    expect(match[1]).toBe('https://jaetill.com/');
+  });
+});
 
-    const fallback = match[1];
-    expect(fallback).toBe('https://jaetill.com/');
+describe('invite.js create flow', () => {
+  it("suppresses Cognito's own invitation email", () => {
+    // Cognito's default template has no link in it. If this ever comes back,
+    // invitees get two emails and the useless one arrives first.
+    expect(SOURCE).toMatch(/MessageAction:\s*'SUPPRESS'/);
   });
 
-  it('never links the bare Cognito auth domain from an email template', () => {
-    // The auth domain is legitimate inside a full /oauth2/... or /login?... URL,
-    // but a bare origin is always a 404.
-    const bareAuthDomain =
-      /https:\/\/just\.jaetill\.com\/?(?!login|oauth2|logout|error|signup|confirmUser|forgotPassword)['"`\s]/;
-    expect(bareAuthDomain.test(SOURCE)).toBe(false);
+  it('sends its own invite instead', () => {
+    expect(SOURCE).toMatch(/buildAccessEmail\(\{\s*\n?\s*variant:\s*'invite'/);
   });
 });

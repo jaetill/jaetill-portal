@@ -39,18 +39,19 @@ Single-page launcher at the apex `jaetill.com`. Users sign in once via Cognito H
 
 ## Frontend source map
 
-| File                 | Purpose                                                                                                               |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `index.html`         | Launcher entry — empty `<div id="app">` shell, JS renders tiles                                                       |
-| `callback.html`      | OAuth redirect target — exchanges code for tokens, redirects to `/`                                                   |
-| `src/js/main.js`     | App shell — auth gate, render sign-in or launcher                                                                     |
-| `src/js/auth.js`     | PKCE flow — verifier/challenge generation, redirect, code exchange, refresh, logout, JWT decode                       |
-| `src/js/callback.js` | Calls `handleCallback()`, redirects to `/` on success                                                                 |
-| `src/js/apps.js`     | Static app catalog + group-based filter — each app entry has a `groups: [...]` field that matches Cognito group names |
-| `src/js/passkey.js`  | Direct WebAuthn API calls against Cognito (StartWebAuthnRegistration / List / Delete)                                 |
-| `src/js/config.js`   | Cognito domain, client ID, redirect/logout URIs, scopes, `API_BASE` for the invite Lambda                             |
-| `lambda/invite.js`   | Admin invite handler — creates user (idempotent) + adds to selected groups                                            |
-| `src/style.css`      | Tailwind entry (`@import "tailwindcss";`)                                                                             |
+| File                   | Purpose                                                                                                               |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `index.html`           | Launcher entry — empty `<div id="app">` shell, JS renders tiles                                                       |
+| `callback.html`        | OAuth redirect target — exchanges code for tokens, redirects to `/`                                                   |
+| `src/js/main.js`       | App shell — auth gate, render sign-in or launcher                                                                     |
+| `src/js/auth.js`       | PKCE flow — verifier/challenge generation, redirect, code exchange, refresh, logout, JWT decode                       |
+| `src/js/callback.js`   | Calls `handleCallback()`, redirects to `/` on success                                                                 |
+| `src/js/apps.js`       | Static app catalog + group-based filter — each app entry has a `groups: [...]` field that matches Cognito group names |
+| `src/js/passkey.js`    | Direct WebAuthn API calls against Cognito (StartWebAuthnRegistration / List / Delete)                                 |
+| `src/js/config.js`     | Cognito domain, client ID, redirect/logout URIs, scopes, `API_BASE` for the invite Lambda                             |
+| `lambda/invite.js`     | Admin handler — create / nudge / nudge-all-stuck / delete                                                             |
+| `lambda/lib/emails.js` | Invite + reminder email bodies. Pure and unit tested; both variants share the credentials block and sign-in link      |
+| `src/style.css`        | Tailwind entry (`@import "tailwindcss";`)                                                                             |
 
 ## API routes
 
@@ -62,12 +63,12 @@ Single-page launcher at the apex `jaetill.com`. Users sign in once via Cognito H
 
 ### POST actions
 
-| `action`           | Purpose                                                                                                                              |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `create` (default) | Create user (idempotent) + add to app groups. Lets Cognito's own invitation email go out — **no link in it**, see follow-up below    |
-| `nudge`            | For a `FORCE_CHANGE_PASSWORD` user: fresh temp password + Postmark re-invite. 60 s in-memory cooldown                                |
-| `nudge-all-stuck`  | Same, for every stuck user                                                                                                           |
-| `delete`           | `AdminDeleteUser` on any status. Refuses self-deletion — losing your own `admins` membership locks you out of the portal permanently |
+| `action`           | Purpose                                                                                                                                                                                                                                                                       |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create` (default) | Create user (idempotent) + add to app groups, then send a Postmark invite carrying the credentials, a portal link, and the app names granted. Cognito's own invitation email is **suppressed** — its default template has no link in it, which is why invitees used to strand |
+| `nudge`            | For a `FORCE_CHANGE_PASSWORD` user: fresh temp password + Postmark re-invite. 60 s in-memory cooldown                                                                                                                                                                         |
+| `nudge-all-stuck`  | Same, for every stuck user                                                                                                                                                                                                                                                    |
+| `delete`           | `AdminDeleteUser` on any status. Refuses self-deletion — losing your own `admins` membership locks you out of the portal permanently                                                                                                                                          |
 
 Deleting a `CONFIRMED` user is destructive past Cognito: sibling apps key S3
 objects by Cognito username (`profiles/{userId}.json`,

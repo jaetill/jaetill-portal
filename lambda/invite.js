@@ -31,6 +31,7 @@ const {
 const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
 const crypto = require('crypto');
 const { Sentry } = require('./lib/sentry');
+const { buildAccessEmail } = require('./lib/emails');
 const https = require('https');
 
 const cognito = new CognitoIdentityProviderClient({ region: process.env.REGION });
@@ -93,6 +94,14 @@ const APP_TO_GROUP = {
   'meal-planner': 'meal-planner-users',
   'game-night': 'game-night-users',
   carto: 'carto-users',
+};
+
+// Human-readable names for the invite email, so the invitee is told what they
+// were actually granted rather than a bare list of slugs.
+const APP_LABEL = {
+  'meal-planner': 'Meal Planner',
+  'game-night': 'Game Night',
+  carto: 'Carto',
 };
 
 // ── Helpers ─────────────────────────────────────────────────────
@@ -179,6 +188,7 @@ exports.handler = Sentry.wrapHandler(async (event) => {
   // existing user and add groups to them instead.
   let isNew = true;
   let username = crypto.randomUUID();
+  const tempPassword = generateTempPassword();
 
   try {
     // Pool has AliasAttributes=["email"] — username can't be the email itself.
@@ -187,12 +197,16 @@ exports.handler = Sentry.wrapHandler(async (event) => {
       new AdminCreateUserCommand({
         UserPoolId: POOL_ID,
         Username: username,
-        TemporaryPassword: generateTempPassword(),
+        TemporaryPassword: tempPassword,
         UserAttributes: [
           { Name: 'email', Value: email },
           { Name: 'email_verified', Value: 'true' },
         ],
-        DesiredDeliveryMediums: ['EMAIL'],
+        // Cognito's default invitation email contains no link — it hands the
+        // invitee a username and password with nowhere to use them, which is
+        // why invited users sat in FORCE_CHANGE_PASSWORD indefinitely. Suppress
+        // it and send our own from jaetill.com below, matching the nudge email.
+        MessageAction: 'SUPPRESS',
       }),
     );
   } catch (err) {
@@ -234,13 +248,50 @@ exports.handler = Sentry.wrapHandler(async (event) => {
     }
   }
 
+  // Only a brand-new account gets an email — the temp password above is the
+  // one Cognito actually stored, and it is meaningless for a user who already
+  // has a password. To re-send to someone still stuck, use action 'nudge',
+  // which mints a fresh one.
+  let emailSent = false;
+  if (isNew) {
+    try {
+      const { POSTMARK_API_KEY } = await getSecrets();
+      const msg = buildAccessEmail({
+        variant: 'invite',
+        email,
+        tempPassword,
+        signInUrl: SIGN_IN_URL,
+        appNames: apps.map((a) => APP_LABEL[a]).filter(Boolean),
+      });
+      await postmark(POSTMARK_API_KEY, {
+        To: email,
+        From: FROM_EMAIL,
+        Subject: msg.subject,
+        TextBody: msg.text,
+        HtmlBody: msg.html,
+        MessageStream: 'outbound',
+      });
+      emailSent = true;
+    } catch (err) {
+      // The account exists and the groups are attached, so this is not a
+      // failed invite — just an unsent one. Reporting 500 would invite a retry
+      // that no-ops on create and still sends nothing, so surface the partial
+      // success and point at Nudge, which does mint a fresh password and send.
+      console.error('postmark.invite_failed:', err);
+      Sentry.captureException(err);
+    }
+  }
+
   return resp(200, {
     email,
     isNew,
+    emailSent,
     groups: groupNames,
-    message: isNew
-      ? `Invitation email sent to ${email}.`
-      : `${email} added to ${groupNames.join(', ')}.`,
+    message: !isNew
+      ? `${email} added to ${groupNames.join(', ')}.`
+      : emailSent
+        ? `Invitation sent to ${email}.`
+        : `${email} was created, but the invitation email failed to send. Use Nudge in the table below to try again.`,
   });
 });
 
@@ -364,12 +415,18 @@ async function handleNudgeOne(body) {
   // which is the suspected source of the original spam-folder bug).
   try {
     const { POSTMARK_API_KEY } = await getSecrets();
+    const msg = buildAccessEmail({
+      variant: 'reminder',
+      email,
+      tempPassword,
+      signInUrl: SIGN_IN_URL,
+    });
     await postmark(POSTMARK_API_KEY, {
       To: email,
       From: FROM_EMAIL,
-      Subject: `Reminder: complete your jaetill.com sign-in`,
-      TextBody: buildNudgeText({ email, tempPassword }),
-      HtmlBody: buildNudgeHtml({ email, tempPassword }),
+      Subject: msg.subject,
+      TextBody: msg.text,
+      HtmlBody: msg.html,
       MessageStream: 'outbound',
     });
   } catch (err) {
@@ -514,12 +571,18 @@ async function handleNudgeAllStuck() {
           Permanent: false,
         }),
       );
+      const msg = buildAccessEmail({
+        variant: 'reminder',
+        email,
+        tempPassword,
+        signInUrl: SIGN_IN_URL,
+      });
       await postmark(POSTMARK_API_KEY, {
         To: email,
         From: FROM_EMAIL,
-        Subject: `Reminder: complete your jaetill.com sign-in`,
-        TextBody: buildNudgeText({ email, tempPassword }),
-        HtmlBody: buildNudgeHtml({ email, tempPassword }),
+        Subject: msg.subject,
+        TextBody: msg.text,
+        HtmlBody: msg.html,
         MessageStream: 'outbound',
       });
       lastNudgedAt.set(email, Date.now());
@@ -531,50 +594,6 @@ async function handleNudgeAllStuck() {
   }
 
   return resp(200, { ...results, total: stuck.length });
-}
-
-// ── Email templates ─────────────────────────────────────────────────
-
-function buildNudgeText({ email, tempPassword }) {
-  return [
-    `Hi,`,
-    ``,
-    `We sent you an invitation to sign in at jaetill.com but you haven't`,
-    `completed the sign-in yet. Here are fresh credentials:`,
-    ``,
-    `  Email:          ${email}`,
-    `  Temp password:  ${tempPassword}`,
-    `  Sign-in URL:    ${SIGN_IN_URL}`,
-    ``,
-    `When you sign in, you'll be prompted to set a permanent password.`,
-    ``,
-    `If you weren't expecting this email, you can safely ignore it.`,
-  ].join('\n');
-}
-
-function buildNudgeHtml({ email, tempPassword }) {
-  const e = (s) =>
-    String(s)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
-  return `<!doctype html>
-<html><body style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;color:#1e293b;max-width:560px;margin:0 auto;padding:24px;">
-  <p>Hi,</p>
-  <p>We sent you an invitation to sign in at jaetill.com but you haven't completed
-     the sign-in yet. Here are fresh credentials:</p>
-  <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin:16px 0;">
-    <table style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;border-collapse:collapse;">
-      <tr><td style="padding:2px 12px 2px 0;color:#64748b;">Email</td><td style="padding:2px 0;color:#1e293b;"><strong>${e(email)}</strong></td></tr>
-      <tr><td style="padding:2px 12px 2px 0;color:#64748b;">Temp password</td><td style="padding:2px 0;color:#1e293b;"><strong>${e(tempPassword)}</strong></td></tr>
-    </table>
-  </div>
-  <p><a href="${e(SIGN_IN_URL)}" style="display:inline-block;background:#0f172a;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;font-weight:600;">Sign in</a></p>
-  <p>When you sign in, you'll be prompted to set a permanent password.</p>
-  <p style="color:#64748b;font-size:13px;margin-top:24px;">If you weren't expecting this email, you can safely ignore it.</p>
-</body></html>`;
 }
 
 // ── Postmark client ─────────────────────────────────────────────────
