@@ -1,5 +1,12 @@
 import './feedback.js';
-import { isAuthenticated, startLogin, logout, parseIdToken, getIdToken, getAccessToken } from './auth.js';
+import {
+  isAuthenticated,
+  startLogin,
+  logout,
+  parseIdToken,
+  getIdToken,
+  getAccessToken,
+} from './auth.js';
 import { registerPasskey, listPasskeys, deletePasskey } from './passkey.js';
 import { appsForUser } from './apps.js';
 import { API_BASE } from './config.js';
@@ -8,8 +15,8 @@ const root = document.getElementById('app');
 
 const KNOWN_APPS = [
   { id: 'meal-planner', name: 'Meal Planner' },
-  { id: 'game-night',   name: 'Game Night' },
-  { id: 'carto',        name: 'Carto' },
+  { id: 'game-night', name: 'Game Night' },
+  { id: 'carto', name: 'Carto' },
 ];
 
 function init() {
@@ -51,7 +58,7 @@ function displayName(claims) {
 }
 
 function renderLauncher(claims) {
-  const apps     = appsForUser(claims);
+  const apps = appsForUser(claims);
   const username = displayName(claims);
 
   root.innerHTML = `
@@ -68,11 +75,15 @@ function renderLauncher(claims) {
         ${apps.map(renderTile).join('')}
       </div>
 
-      ${apps.length === 0 ? `
+      ${
+        apps.length === 0
+          ? `
         <p class="text-center text-gray-500 mt-12">
           You haven't been invited to any apps yet. Ask the admin to grant you access.
         </p>
-      ` : ''}
+      `
+          : ''
+      }
 
       <section class="mt-12 bg-white rounded-xl p-6 shadow-sm">
         <div class="flex items-center justify-between flex-wrap gap-3">
@@ -121,12 +132,14 @@ function isAdmin(claims) {
 }
 
 function renderAdminSection() {
-  const checkboxes = KNOWN_APPS.map(a => `
+  const checkboxes = KNOWN_APPS.map(
+    (a) => `
     <label class="flex items-center gap-2 text-sm">
       <input type="checkbox" name="apps" value="${escape(a.id)}" class="rounded" />
       ${escape(a.name)}
     </label>
-  `).join('');
+  `,
+  ).join('');
 
   return `
     <section class="mt-8 bg-white rounded-xl p-6 shadow-sm">
@@ -186,31 +199,31 @@ function renderAdminSection() {
 // ── Admin user table ────────────────────────────────────────────
 
 const STATUS_PILL = {
-  CONFIRMED:             { label: 'Active',          cls: 'bg-green-100 text-green-700' },
+  CONFIRMED: { label: 'Active', cls: 'bg-green-100 text-green-700' },
   FORCE_CHANGE_PASSWORD: { label: 'Pending sign-in', cls: 'bg-amber-100 text-amber-700' },
-  RESET_REQUIRED:        { label: 'Reset required',  cls: 'bg-amber-100 text-amber-700' },
-  EXTERNAL_PROVIDER:     { label: 'Federated',       cls: 'bg-blue-100 text-blue-700'   },
+  RESET_REQUIRED: { label: 'Reset required', cls: 'bg-amber-100 text-amber-700' },
+  EXTERNAL_PROVIDER: { label: 'Federated', cls: 'bg-blue-100 text-blue-700' },
 };
 
 const APP_LABEL_BY_GROUP = {
-  'admins':              { label: 'Admin',        cls: 'bg-gray-900 text-white' },
-  'meal-planner-users':  { label: 'Meal Planner', cls: 'bg-emerald-100 text-emerald-800' },
-  'game-night-users':    { label: 'Game Night',   cls: 'bg-amber-100 text-amber-800' },
-  'carto-users':         { label: 'Carto',        cls: 'bg-slate-200 text-slate-800' },
+  admins: { label: 'Admin', cls: 'bg-gray-900 text-white' },
+  'meal-planner-users': { label: 'Meal Planner', cls: 'bg-emerald-100 text-emerald-800' },
+  'game-night-users': { label: 'Game Night', cls: 'bg-amber-100 text-amber-800' },
+  'carto-users': { label: 'Carto', cls: 'bg-slate-200 text-slate-800' },
 };
 
 async function loadAdminUsers() {
   const status = document.getElementById('admin-users-status');
-  const tbody  = document.getElementById('admin-users-tbody');
+  const tbody = document.getElementById('admin-users-tbody');
   if (!status || !tbody) return;
 
   status.textContent = 'Loading…';
-  status.className   = 'text-sm text-gray-500 mt-0.5';
+  status.className = 'text-sm text-gray-500 mt-0.5';
 
   try {
     const res = await fetch(`${API_BASE}/invite`, {
-      method:  'GET',
-      headers: { 'Authorization': `Bearer ${getIdToken()}` },
+      method: 'GET',
+      headers: { Authorization: `Bearer ${getIdToken()}` },
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
@@ -222,17 +235,34 @@ async function loadAdminUsers() {
       return;
     }
 
-    tbody.innerHTML = users.map(u => {
-      const pill = STATUS_PILL[u.status] || { label: u.status || '—', cls: 'bg-gray-100 text-gray-700' };
-      const apps = (u.groups || [])
-        .map(g => APP_LABEL_BY_GROUP[g] || { label: g, cls: 'bg-gray-100 text-gray-700' })
-        .map(a => `<span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium ${a.cls} mr-1">${escape(a.label)}</span>`)
-        .join('');
-      const joined = u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—';
-      const action = u.status === 'FORCE_CHANGE_PASSWORD'
-        ? `<button class="nudge-btn text-xs bg-amber-100 text-amber-800 hover:bg-amber-200 px-2 py-1 rounded" data-email="${escape(u.email || '')}">Nudge</button>`
-        : '<span class="text-gray-300 text-xs">—</span>';
-      return `
+    tbody.innerHTML = users
+      .map((u) => {
+        const pill = STATUS_PILL[u.status] || {
+          label: u.status || '—',
+          cls: 'bg-gray-100 text-gray-700',
+        };
+        const apps = (u.groups || [])
+          .map((g) => APP_LABEL_BY_GROUP[g] || { label: g, cls: 'bg-gray-100 text-gray-700' })
+          .map(
+            (a) =>
+              `<span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium ${a.cls} mr-1">${escape(a.label)}</span>`,
+          )
+          .join('');
+        const joined = u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—';
+        const email = escape(u.email || '');
+        const nudge =
+          u.status === 'FORCE_CHANGE_PASSWORD'
+            ? `<button class="nudge-btn text-xs bg-amber-100 text-amber-800 hover:bg-amber-200 px-2 py-1 rounded" data-email="${email}">Nudge</button>`
+            : '';
+        // Delete is offered for every status, not just pending — a mistyped
+        // address has to be removable whether or not the invitee signed in.
+        // handleDeleteUser() escalates the confirmation for active accounts.
+        const del = u.email
+          ? `<button class="delete-btn text-xs bg-red-50 text-red-700 hover:bg-red-100 px-2 py-1 rounded" data-email="${email}" data-status="${escape(u.status || '')}">Delete</button>`
+          : '';
+        const action =
+          [nudge, del].filter(Boolean).join(' ') || '<span class="text-gray-300 text-xs">—</span>';
+        return `
         <tr class="border-b last:border-0">
           <td class="py-2 pr-4 font-medium text-gray-900">${escape(u.email || '(no email)')}</td>
           <td class="py-2 pr-4"><span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium ${pill.cls}">${escape(pill.label)}</span></td>
@@ -241,21 +271,26 @@ async function loadAdminUsers() {
           <td class="py-2">${action}</td>
         </tr>
       `;
-    }).join('');
+      })
+      .join('');
 
     // Wire per-row nudge buttons.
-    tbody.querySelectorAll('.nudge-btn').forEach(btn => {
+    tbody.querySelectorAll('.nudge-btn').forEach((btn) => {
       btn.addEventListener('click', () => handleNudgeOne(btn));
     });
 
+    // Wire per-row delete buttons.
+    tbody.querySelectorAll('.delete-btn').forEach((btn) => {
+      btn.addEventListener('click', () => handleDeleteUser(btn));
+    });
+
     // Wire the bulk button. Enable only when there's something to nudge.
-    const stuckCount = users.filter(u => u.status === 'FORCE_CHANGE_PASSWORD').length;
+    const stuckCount = users.filter((u) => u.status === 'FORCE_CHANGE_PASSWORD').length;
     const bulkBtn = document.getElementById('nudge-all-btn');
     if (bulkBtn) {
       bulkBtn.disabled = stuckCount === 0;
-      bulkBtn.textContent = stuckCount > 0
-        ? `Nudge all stuck users (${stuckCount})`
-        : 'Nudge all stuck users';
+      bulkBtn.textContent =
+        stuckCount > 0 ? `Nudge all stuck users (${stuckCount})` : 'Nudge all stuck users';
       bulkBtn.onclick = () => handleNudgeAllStuck(stuckCount);
     }
 
@@ -265,17 +300,19 @@ async function loadAdminUsers() {
     if (refreshBtn) refreshBtn.onclick = loadAdminUsers;
   } catch (err) {
     status.textContent = `Couldn't load users: ${err.message}`;
-    status.className   = 'text-sm text-red-600 mt-0.5';
-    tbody.innerHTML    = '';
+    status.className = 'text-sm text-red-600 mt-0.5';
+    tbody.innerHTML = '';
   }
 }
 
 async function handleInviteSubmit(e) {
   e.preventDefault();
   const status = document.getElementById('invite-status');
-  const btn    = document.getElementById('invite-btn');
-  const email  = document.getElementById('invite-email').value.trim();
-  const apps   = Array.from(document.querySelectorAll('input[name="apps"]:checked')).map(el => el.value);
+  const btn = document.getElementById('invite-btn');
+  const email = document.getElementById('invite-email').value.trim();
+  const apps = Array.from(document.querySelectorAll('input[name="apps"]:checked')).map(
+    (el) => el.value,
+  );
 
   status.textContent = '';
   status.className = 'text-sm';
@@ -291,15 +328,15 @@ async function handleInviteSubmit(e) {
     return;
   }
 
-  btn.disabled    = true;
+  btn.disabled = true;
   btn.textContent = 'Sending…';
 
   try {
     const res = await fetch(`${API_BASE}/invite`, {
-      method:  'POST',
+      method: 'POST',
       headers: {
-        'Content-Type':  'application/json',
-        'Authorization': `Bearer ${getIdToken()}`,
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${getIdToken()}`,
       },
       body: JSON.stringify({ email, apps }),
     });
@@ -312,7 +349,7 @@ async function handleInviteSubmit(e) {
     status.textContent = `Failed: ${err.message}`;
     status.className = 'text-sm text-red-600';
   } finally {
-    btn.disabled    = false;
+    btn.disabled = false;
     btn.textContent = 'Send invite';
   }
 }
@@ -328,10 +365,10 @@ async function handleNudgeOne(btn) {
 
   try {
     const res = await fetch(`${API_BASE}/invite`, {
-      method:  'POST',
+      method: 'POST',
       headers: {
-        'Content-Type':  'application/json',
-        'Authorization': `Bearer ${getIdToken()}`,
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${getIdToken()}`,
       },
       body: JSON.stringify({ action: 'nudge', email }),
     });
@@ -354,9 +391,48 @@ async function handleNudgeOne(btn) {
   }
 }
 
+async function handleDeleteUser(btn) {
+  const email = btn.dataset.email;
+  const status = btn.dataset.status;
+  if (!email) return;
+
+  // A pending user has never signed in, so nothing of theirs exists to lose.
+  // An active one may own data in the sibling apps that is keyed by their
+  // Cognito user ID — game night collections, profiles, hosted events — and
+  // none of it is cleaned up or reassigned when the account goes away.
+  const pending = status === 'FORCE_CHANGE_PASSWORD';
+  const warning = pending
+    ? `Delete ${email}?\n\nThey never completed sign-in, so nothing of theirs is lost. You can re-invite the correct address afterwards.\n\nThis cannot be undone.`
+    : `Delete ${email}?\n\nThis is an ACTIVE account. They lose access to every app immediately, and anything they own in the sibling apps — game night collections, profiles, events they host — is keyed to this user and will be orphaned.\n\nThis cannot be undone.`;
+  if (!confirm(warning)) return;
+
+  btn.disabled = true;
+  const originalLabel = btn.textContent;
+  btn.textContent = 'Deleting…';
+
+  try {
+    const res = await fetch(`${API_BASE}/invite`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${getIdToken()}`,
+      },
+      body: JSON.stringify({ action: 'delete', email }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
+    await loadAdminUsers();
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+    alert(`Couldn't delete ${email}: ${err.message}`);
+  }
+}
+
 async function handleNudgeAllStuck(stuckCount) {
   if (stuckCount === 0) return;
-  if (!confirm(`This will email ${stuckCount} stuck user${stuckCount === 1 ? '' : 's'}. Continue?`)) return;
+  if (!confirm(`This will email ${stuckCount} stuck user${stuckCount === 1 ? '' : 's'}. Continue?`))
+    return;
 
   const bulkBtn = document.getElementById('nudge-all-btn');
   const bulkStatus = document.getElementById('nudge-bulk-status');
@@ -369,10 +445,10 @@ async function handleNudgeAllStuck(stuckCount) {
 
   try {
     const res = await fetch(`${API_BASE}/invite`, {
-      method:  'POST',
+      method: 'POST',
       headers: {
-        'Content-Type':  'application/json',
-        'Authorization': `Bearer ${getIdToken()}`,
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${getIdToken()}`,
       },
       body: JSON.stringify({ action: 'nudge-all-stuck' }),
     });
@@ -402,7 +478,7 @@ async function loadPasskeys() {
   if (!token) return;
 
   const status = document.getElementById('passkey-status');
-  const list   = document.getElementById('passkey-list');
+  const list = document.getElementById('passkey-list');
 
   try {
     const passkeys = await listPasskeys(token);
@@ -412,7 +488,9 @@ async function loadPasskeys() {
       return;
     }
     status.textContent = `${passkeys.length} passkey${passkeys.length === 1 ? '' : 's'} registered.`;
-    list.innerHTML = passkeys.map(p => `
+    list.innerHTML = passkeys
+      .map(
+        (p) => `
       <li class="flex items-center justify-between text-sm bg-gray-50 rounded px-3 py-2">
         <span>
           <span class="font-medium">${escape(p.FriendlyCredentialName || 'Unnamed passkey')}</span>
@@ -422,8 +500,10 @@ async function loadPasskeys() {
           Remove
         </button>
       </li>
-    `).join('');
-    list.querySelectorAll('.passkey-delete').forEach(btn => {
+    `,
+      )
+      .join('');
+    list.querySelectorAll('.passkey-delete').forEach((btn) => {
       btn.addEventListener('click', () => handleDeletePasskey(btn.dataset.id));
     });
   } catch (err) {
@@ -432,9 +512,9 @@ async function loadPasskeys() {
 }
 
 async function handleRegisterPasskey() {
-  const btn    = document.getElementById('register-passkey-btn');
+  const btn = document.getElementById('register-passkey-btn');
   const status = document.getElementById('passkey-status');
-  btn.disabled    = true;
+  btn.disabled = true;
   btn.textContent = 'Setting up…';
   try {
     await registerPasskey(getAccessToken());
@@ -447,7 +527,7 @@ async function handleRegisterPasskey() {
       status.textContent = `Failed: ${err.message}`;
     }
   } finally {
-    btn.disabled    = false;
+    btn.disabled = false;
     btn.textContent = 'Register passkey';
   }
 }

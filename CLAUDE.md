@@ -54,10 +54,25 @@ Single-page launcher at the apex `jaetill.com`. Users sign in once via Cognito H
 
 ## API routes
 
-| Method  | Path    | Auth                                           | Lambda                | Purpose                                                                                     |
-| ------- | ------- | ---------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------- |
-| POST    | /invite | Cognito JWT (caller must be in `admins` group) | jaetill-portal-invite | Create user (or no-op) + add them to one or more app groups; Cognito sends invitation email |
-| OPTIONS | /invite | None                                           | jaetill-portal-invite | CORS preflight (Lambda returns headers)                                                     |
+| Method  | Path    | Auth                                           | Lambda                | Purpose                                                                   |
+| ------- | ------- | ---------------------------------------------- | --------------------- | ------------------------------------------------------------------------- |
+| GET     | /invite | Cognito JWT (caller must be in `admins` group) | jaetill-portal-invite | List every user in the pool with status + group memberships (admin table) |
+| POST    | /invite | Cognito JWT (caller must be in `admins` group) | jaetill-portal-invite | Dispatches on `body.action` — see below                                   |
+| OPTIONS | /invite | None                                           | jaetill-portal-invite | CORS preflight (Lambda returns headers)                                   |
+
+### POST actions
+
+| `action`           | Purpose                                                                                                                              |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `create` (default) | Create user (idempotent) + add to app groups. Lets Cognito's own invitation email go out — **no link in it**, see follow-up below    |
+| `nudge`            | For a `FORCE_CHANGE_PASSWORD` user: fresh temp password + Postmark re-invite. 60 s in-memory cooldown                                |
+| `nudge-all-stuck`  | Same, for every stuck user                                                                                                           |
+| `delete`           | `AdminDeleteUser` on any status. Refuses self-deletion — losing your own `admins` membership locks you out of the portal permanently |
+
+Deleting a `CONFIRMED` user is destructive past Cognito: sibling apps key S3
+objects by Cognito username (`profiles/{userId}.json`,
+`collections/{userId}.json`, `hostUserId` on game nights). Nothing reassigns or
+cleans those up; the admin UI warns before the call.
 
 ## Environment variables
 

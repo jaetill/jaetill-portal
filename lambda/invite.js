@@ -2,9 +2,13 @@
  * Route(s):    POST /invite — create user + assign app groups
  *              GET  /invite — list all users with their app groups (admin table)
  * Auth:        Cognito JWT (caller must be in `admins` group)
- * Env vars:    USER_POOL_ID, REGION, ALLOWED_ORIGIN
+ * Env vars:    USER_POOL_ID, REGION, ALLOWED_ORIGIN, FROM_EMAIL, SIGN_IN_URL
  * Cognito:     AdminCreateUser, AdminAddUserToGroup, AdminListGroupsForUser,
- *              ListUsers against the shared pool
+ *              AdminSetUserPassword, AdminDeleteUser, ListUsers against the
+ *              shared pool
+ *
+ * Actions:     POST body.action — create (default), nudge, nudge-all-stuck,
+ *              delete
  *
  * POST body:   { "email": "alice@example.com", "apps": ["meal-planner", "game-night"] }
  *              Idempotent. If the user already exists, just adds the requested
@@ -21,6 +25,7 @@ const {
   AdminAddUserToGroupCommand,
   AdminListGroupsForUserCommand,
   AdminSetUserPasswordCommand,
+  AdminDeleteUserCommand,
   ListUsersCommand,
 } = require('@aws-sdk/client-cognito-identity-provider');
 const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
@@ -148,9 +153,10 @@ exports.handler = Sentry.wrapHandler(async (event) => {
   const action = body.action || 'create';
   if (action === 'nudge') return await handleNudgeOne(body);
   if (action === 'nudge-all-stuck') return await handleNudgeAllStuck();
+  if (action === 'delete') return await handleDeleteUser(body, claims);
   if (action !== 'create') {
     return resp(400, {
-      message: `Unknown action '${action}'. Expected one of: create, nudge, nudge-all-stuck.`,
+      message: `Unknown action '${action}'. Expected one of: create, nudge, nudge-all-stuck, delete.`,
     });
   }
 
@@ -373,6 +379,73 @@ async function handleNudgeOne(body) {
 
   lastNudgedAt.set(email, Date.now());
   return resp(200, { sent: 1, email, status: 'nudged' });
+}
+
+// ── POST { action: 'delete', email } — remove a user ────────────────
+//
+// Deletes any user regardless of status, by explicit choice: the pool is
+// invite-only with a single admin, and a mistyped address needs to be
+// removable whether or not the invitee got as far as signing in.
+//
+// The one refusal is self-deletion. `admins` membership is what unlocks this
+// endpoint, so deleting your own account permanently locks you out of the
+// portal with no in-app way back.
+//
+// Deleting a CONFIRMED user is destructive beyond Cognito: sibling apps key S3
+// objects by Cognito username (`profiles/{userId}.json`,
+// `collections/{userId}.json`, and `hostUserId` on game nights), and none of
+// that is cleaned up or reassigned here. The caller is warned in the UI.
+async function handleDeleteUser(body, claims) {
+  const email = (body.email || '').trim().toLowerCase();
+  if (!email || !email.includes('@')) {
+    return resp(400, { message: 'Valid email required' });
+  }
+
+  const lookup = await cognito.send(
+    new ListUsersCommand({
+      UserPoolId: POOL_ID,
+      Filter: `email = "${email}"`,
+      Limit: 1,
+    }),
+  );
+  if (!lookup.Users || lookup.Users.length === 0) {
+    return resp(404, { message: `No user with email ${email}` });
+  }
+  const user = lookup.Users[0];
+
+  // Self-delete guard. Match on username first — it is the pool's real
+  // identity — and fall back to the email claim if the username claim is
+  // absent from the token.
+  const callerUsername = claims['cognito:username'];
+  const callerEmail = (claims.email || '').trim().toLowerCase();
+  if (
+    (callerUsername && callerUsername === user.Username) ||
+    (callerEmail && callerEmail === email)
+  ) {
+    return resp(409, {
+      message:
+        'You cannot delete your own account — admin access to this portal would be lost with no way back in.',
+    });
+  }
+
+  const previousStatus = user.UserStatus || 'UNKNOWN';
+  try {
+    await cognito.send(
+      new AdminDeleteUserCommand({
+        UserPoolId: POOL_ID,
+        Username: user.Username,
+      }),
+    );
+  } catch (err) {
+    console.error(`AdminDeleteUser ${user.Username} failed:`, err);
+    return resp(500, { message: err.message || 'Could not delete user' });
+  }
+
+  // Drop any pending nudge cooldown so a re-invite of the same address is not
+  // silently throttled by the deleted user's entry.
+  lastNudgedAt.delete(email);
+
+  return resp(200, { deleted: email, previousStatus });
 }
 
 // ── POST { action: 'nudge-all-stuck' } — bulk nudge ─────────────────
