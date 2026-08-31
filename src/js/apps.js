@@ -38,6 +38,18 @@ export const APPS = [
     // No `hidden` — only users in carto-users (currently just jaetill) see this tile.
   },
   {
+    id: 'draft',
+    name: 'Draft Assistant',
+    description: 'Live fantasy football draft guidance.',
+    url: 'https://draft.jaetill.com',
+    icon: '🏈',
+    accent: 'from-amber-50 to-orange-100',
+    groups: ['admins'],
+    // Personal tool. The site itself is unauthenticated (Sleeper data is
+    // public), but the tile is only surfaced to admins — same spirit as carto:
+    // not advertised in the general launcher.
+  },
+  {
     id: 'splendor',
     name: 'Splendor',
     description: 'Marvel Splendor against AI opponents.',
